@@ -3,6 +3,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerGuards } from './guards.js';
+import { registerTools } from './tools.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'myco');
 
@@ -16,5 +17,6 @@ export default {
       event.env = { ...event.env, MYCO_ROOT: ROOT };
     });
     await registerGuards(ctx, ROOT);
+    await registerTools(ctx, ROOT);
   },
 };
