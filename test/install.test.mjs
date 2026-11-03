@@ -15,6 +15,9 @@ const INSTALL = join(ROOT, 'scripts', 'install.mjs');
 const ALLOWED_KEYS = new Set(['description', 'mode', 'model', 'variant', 'permission']);
 const read = (p) => readFileSync(p, 'utf8');
 
+/** @returns {string} an installed agent's frontmatter; agent prompts mention gh pr merge in prose, so rules are checked here only */
+const frontmatterOf = (text) => text.match(/^---\n([\s\S]*?)\n---/)[1];
+
 /** Top-level keys of an installed agent's frontmatter. */
 const topKeys = (text) => [...text.match(/^---\n([\s\S]*?)\n---/)[1].matchAll(/^([A-Za-z_][\w-]*):/gm)].map((m) => m[1]);
 
@@ -23,7 +26,8 @@ const SOURCE = '---\nname: x\ndescription: Does a thing: with a colon, and "quot
 describe('transformAgent', () => {
   test('keeps the description and body exactly, drops every Claude Code key, adds the mode', () => {
     const out = transformAgent({ id: 'engineering-team/ic-generalist', text: SOURCE });
-    assert.deepEqual(topKeys(out), ['description', 'mode']);
+    // The merge backstop adds a permission block to every agent.
+    assert.deepEqual(topKeys(out), ['description', 'mode', 'permission']);
     assert.match(out, /^mode: subagent$/m);
     // The description is written as a JSON string, which YAML reads as a double-quoted scalar.
     assert.equal(JSON.parse(out.match(/^description: (.*)$/m)[1]), 'Does a thing: with a colon, and "quotes".');
@@ -39,8 +43,32 @@ describe('transformAgent', () => {
   test('agent-coach may write reports under a relative or an absolute path, and nowhere else', () => {
     const coach = transformAgent({ id: 'team-ops/agent-coach', text: SOURCE });
     // "*" first, then the allows: the last matching rule wins.
-    const rules = [...coach.matchAll(/^ {4}"([^"]+)": (\w+)$/gm)].map((m) => [m[1], m[2]]);
+    const editBlock = coach.match(/^ {2}edit:\n((?: {4}.*\n)+)/m)[1];
+    const rules = [...editBlock.matchAll(/^ {4}"([^"]+)": (\w+)$/gm)].map((m) => [m[1], m[2]]);
     assert.deepEqual(rules, [['*', 'deny'], ['.claude/ops/reports/**', 'allow'], ['*/.claude/ops/reports/**', 'allow']]);
+  });
+
+  test('every agent denies gh pr merge, so the rule holds even if the plugin does not load', () => {
+    for (const id of ['engineering-team/ic-generalist', 'design-team/architect', 'engineering-team/tech-lead']) {
+      const out = transformAgent({ id, text: SOURCE });
+      assert.match(out, /^permission:\n {2}shell:\n {4}"gh pr merge\*": deny\n {4}"gh \* pr merge\*": deny$/m, id);
+    }
+  });
+
+  test('the backstop sits beside an agent\'s own rules, whichever actions they cover', () => {
+    const reviewer = transformAgent({ id: 'engineering-team/code-reviewer', text: SOURCE });
+    assert.match(reviewer, /^permission:\n {2}edit: deny\n {2}shell:\n {4}"gh pr merge\*": deny/m);
+    const coach = transformAgent({ id: 'team-ops/agent-coach', text: SOURCE });
+    assert.match(coach, /^ {2}edit:\n {4}"\*": deny/m);
+    assert.match(coach, /^ {2}shell:\n {4}"gh pr merge\*": deny/m);
+  });
+
+  test('allowing autonomous merging leaves the backstop out and everything else as it was', () => {
+    const open = transformAgent({ id: 'engineering-team/ic-generalist', text: SOURCE, mergeBackstop: false });
+    assert.doesNotMatch(open, /permission|gh pr merge/);
+    assert.equal(open, transformAgent({ id: 'engineering-team/ic-generalist', text: SOURCE }).replace(/permission:\n(?: {2,}.*\n)+/, ''));
+    // An agent with rules of its own keeps them.
+    assert.match(transformAgent({ id: 'engineering-team/code-reviewer', text: SOURCE, mergeBackstop: false }), /^permission:\n {2}edit: deny\n---/m);
   });
 
   test('a model mapping sets model and variant by tier, and a per-agent entry wins', () => {
@@ -132,6 +160,27 @@ describe('install', () => {
     assert.ok(named >= 20, `expected the agents and skills to name installed files, found ${named}`);
   });
 
+  test('install writes the backstop into every agent by default, and not with mergeBackstop off', (t) => {
+    const sb = sandbox(t);
+    const gated = join(sb.root, 'gated');
+    const open = join(sb.root, 'open');
+    const { agents } = install({ target: gated });
+    install({ target: open, mergeBackstop: false });
+    assert.equal(agents.length, 11);
+    for (const id of agents) {
+      assert.match(frontmatterOf(read(join(gated, 'agents', `${id}.md`))), /^ {4}"gh pr merge\*": deny$/m, id);
+      assert.doesNotMatch(frontmatterOf(read(join(open, 'agents', `${id}.md`))), /gh pr merge/, id);
+    }
+  });
+
+  test('a reinstall without the option puts the backstop back, so the safe state is the default', (t) => {
+    const sb = sandbox(t);
+    const target = join(sb.root, 'out');
+    install({ target, mergeBackstop: false });
+    install({ target });
+    assert.match(frontmatterOf(read(join(target, 'agents', 'engineering-team', 'ic-generalist.md'))), /gh pr merge/);
+  });
+
   test('a reinstall replaces what it owns and leaves everything else alone', (t) => {
     const sb = sandbox(t);
     const target = join(sb.root, 'out');
@@ -185,6 +234,19 @@ describe('install CLI', () => {
     const r = spawnSync(process.execPath, [INSTALL, '--target', target], { encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
     assert.match(read(join(target, 'agents', 'design-team', 'product-lead.md')), /^model: "p\/lead"$/m);
+  });
+
+  test('--allow-autonomous-merge leaves the backstop out, and says so', (t) => {
+    const sb = sandbox(t);
+    const gated = spawnSync(process.execPath, [INSTALL, '--target', join(sb.root, 'gated')], { encoding: 'utf8' });
+    assert.equal(gated.status, 0, gated.stderr);
+    assert.doesNotMatch(gated.stdout, /gh pr merge/);
+    assert.match(frontmatterOf(read(join(sb.root, 'gated', 'agents', 'design-team', 'architect.md'))), /gh pr merge/);
+
+    const open = spawnSync(process.execPath, [INSTALL, '--target', join(sb.root, 'open'), '--allow-autonomous-merge'], { encoding: 'utf8' });
+    assert.equal(open.status, 0, open.stderr);
+    assert.match(open.stdout, /agents may run `gh pr merge` where a project's merge_policy allows it/);
+    assert.doesNotMatch(frontmatterOf(read(join(sb.root, 'open', 'agents', 'design-team', 'architect.md'))), /gh pr merge/);
   });
 
   test('needs somewhere to install, and says so', () => {

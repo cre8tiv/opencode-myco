@@ -8,7 +8,7 @@
 // OpenCode configuration, sessions or credentials.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync, realpathSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT, sandbox } from './helpers.mjs';
@@ -51,6 +51,30 @@ describe('installed into OpenCode', { skip: !enabled && 'set MYCO_TEST_OPENCODE=
     assert.deepEqual(agents.get('design-team/architect').model, { id: 'model', providerID: 'test', variant: 'medium' });
   });
 
+  test('the merge backstop is compiled into every team agent and decides as documented', (t) => {
+    const { oc } = project(t);
+    const agents = JSON.parse(oc('debug', 'agents').stdout).filter((a) => a.id.includes('/'));
+    assert.equal(agents.length, 11);
+    for (const a of agents) {
+      const shell = a.permissions.filter((p) => p.action === 'shell').map((p) => `${p.resource}=${p.effect}`);
+      assert.deepEqual(shell.slice(-2), ['gh pr merge*=deny', 'gh * pr merge*=deny'], a.id);
+    }
+
+    // Give OpenCode's own permission engine the compiled rules and ask it about commands: no model involved.
+    const rules = agents.find((a) => a.id === 'engineering-team/ic-generalist').permissions;
+    const id = JSON.parse(oc('api', 'POST', '/api/session', '-d', JSON.stringify({ title: 'myco-test', permissions: rules })).stdout).data.id;
+    t.after(() => oc('session', 'delete', id));
+    const decide = (command) => JSON.parse(oc('api', 'POST', `/api/session/${id}/permission`, '-d', JSON.stringify({ action: 'shell', resources: [command] })).stdout).data.effect;
+    assert.equal(decide('gh pr merge 5'), 'deny');
+    assert.equal(decide('gh pr merge 5 --squash'), 'deny');
+    assert.equal(decide('gh --repo o/r pr merge 5'), 'deny');
+    assert.equal(decide('gh pr view 5'), 'allow');
+    assert.equal(decide('echo gh pr merge'), 'allow', 'a command that merely mentions it is not a merge');
+    // What the backstop does not cover, which the plugin's guard does: the guard is the real check.
+    assert.equal(decide('bash -c "gh pr merge 1"'), 'allow');
+    assert.equal(decide('git push origin main'), 'allow');
+  });
+
   test('no Claude Code key reaches the provider request', (t) => {
     const { oc } = project(t);
     const agents = JSON.parse(oc('debug', 'agents').stdout).filter((a) => a.id.includes('/'));
@@ -72,5 +96,48 @@ describe('installed into OpenCode', { skip: !enabled && 'set MYCO_TEST_OPENCODE=
       if (shell?.status === 'exited') out = shell.output.output;
     }
     assert.equal(out?.trim(), `ROOT=${join(dir, '.opencode', 'myco')}`);
+  });
+
+  test('a global install runs one plugin instance per location, each knowing its own directory', (t) => {
+    // The merge gate reads the project profile from the directory its plugin instance runs in. That is
+    // only right if a session located elsewhere, such as an isolated worktree, is served by an instance
+    // whose directory is that location. A probe plugin beside ours records where each instance runs.
+    const sb = sandbox(t);
+    const config = join(sb.home, '.config', 'opencode');
+    install({ target: config });
+    mkdirSync(join(config, 'plugins', 'locprobe'), { recursive: true });
+    writeFileSync(join(config, 'plugins', 'locprobe', 'index.js'),
+      'import { appendFileSync } from "node:fs";\n' +
+      'export default { id: "locprobe", async setup(ctx) { appendFileSync(process.env.HOME + "/loc.log", ctx.location.directory + "\\n"); } };\n');
+    const dir = join(sb.root, 'proj');
+    mkdirSync(dir, { recursive: true });
+    const run = (cmd, args) => spawnSync(cmd, args, { cwd: dir, encoding: 'utf8', timeout: 90000, env: { ...process.env, HOME: sb.home, USERPROFILE: sb.home, XDG_CONFIG_HOME: join(sb.home, '.config'), XDG_DATA_HOME: join(sb.home, '.local', 'share') } });
+    const git = (...a) => run('git', ['-c', 'user.email=t@e', '-c', 'user.name=t', ...a]);
+    git('init', '-q', '-b', 'main');
+    writeFileSync(join(dir, 'README.md'), 'x');
+    git('add', '-A');
+    git('commit', '-q', '-m', 'init');
+    const api = (...args) => JSON.parse(run('opencode', ['api', '--standalone', ...args]).stdout);
+    const shellOutput = (session) => {
+      for (let i = 0; i < 20; i++) {
+        const m = api('GET', `/api/session/${session}/message`).data.find((x) => x.type === 'shell');
+        if (m?.status === 'exited') return m.output.output;
+      }
+      return undefined;
+    };
+
+    const main = api('POST', '/api/session', '-d', '{"title":"main"}').data.id;
+    run('opencode', ['api', '--standalone', 'POST', `/api/session/${main}/shell`, '-d', '{"command":"echo main"}']);
+    assert.ok(shellOutput(main) !== undefined);
+    const project = api('GET', '/api/project').find((p) => realpathSync(p.canonical || '.') === realpathSync(dir));
+    const worktree = api('POST', '/api/worktree', '-d', JSON.stringify({ projectID: project.id, name: 'wt' })).directory;
+    const located = api('POST', '/api/session', '-d', JSON.stringify({ title: 'wt', location: { directory: worktree } })).data.id;
+    run('opencode', ['api', '--standalone', 'POST', `/api/session/${located}/shell`, '-d', JSON.stringify({ command: 'echo ROOT=$MYCO_ROOT' })]);
+    const out = shellOutput(located);
+
+    const seen = new Set(readFileSync(join(sb.home, 'loc.log'), 'utf8').split('\n').filter(Boolean).map((p) => realpathSync(p)));
+    assert.ok(seen.has(realpathSync(dir)), 'an instance runs in the project directory');
+    assert.ok(seen.has(realpathSync(worktree)), 'a session located in a worktree gets an instance in the worktree');
+    assert.match(out, /ROOT=.*[\\/]myco/, 'and that instance is the one serving it');
   });
 });
