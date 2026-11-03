@@ -11,13 +11,8 @@
 //
 // Each record carries the fields every team-ops record shares (context.mjs) and, when
 // TEAM_OPS_OTLP_ENDPOINT is set, is also exported as an OTel event (otlp.mjs).
-import { appendFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { streamDir, resolveStreamName } from './stream.mjs';
 import { subagentType, resolveContext } from './context.mjs';
-import { exportEvent } from './otlp.mjs';
-
-const cap = (v, n) => (typeof v === 'string' && v.length > n ? v.slice(0, n) + '…' : v);
+import { recordEvent } from './capture-core.mjs';
 
 const read = () =>
   new Promise((res) => {
@@ -41,33 +36,23 @@ try {
   if (!String(agentType || '').includes(':')) process.exit(0);
   const ctx = resolveContext({ transcriptPath: e.transcript_path, sessionId: e.session_id, agentId: e.agent_id, agentType });
 
-  const ti = e.tool_input || {};
-
-  const rec = {
-    ts: new Date().toISOString(),
+  await recordEvent({
     event: e.hook_event_name,
     agent: ctx.agent,
-    agent_id: e.agent_id,
+    agentId: e.agent_id,
     session: e.session_id,
     work: ctx.work,
-    parent_work: ctx.parent_work,
+    parentWork: ctx.parent_work,
     cwd: e.cwd,
     mode: e.permission_mode,
     effort: e.effort?.level,
     tool: e.tool_name,
-    // One representative argument per tool, so a finding is traceable to a command.
-    target: cap(ti.command || ti.file_path || ti.pattern || ti.url || ti.subagent_type, 300),
-    error: cap(typeof e.tool_response === 'string' ? e.tool_response : e.error || e.message, 600),
-    reason: cap(e.permission_decision_reason || e.reason, 300),
-    // SubagentStop carries the agent's own final report — the richest field here.
-    report: cap(e.last_assistant_message, 1200),
+    input: e.tool_input,
+    error: typeof e.tool_response === 'string' ? e.tool_response : e.error || e.message,
+    reason: e.permission_decision_reason || e.reason,
+    report: e.last_assistant_message,
     task: e.task?.description || e.description,
-  };
-  for (const k of Object.keys(rec)) if (rec[k] === undefined || rec[k] === null) delete rec[k];
-
-  const dir = streamDir(e.cwd);
-  appendFileSync(join(dir, 'events.jsonl'), JSON.stringify(rec) + '\n', 'utf8');
-  await exportEvent(dir, resolveStreamName(e.cwd), rec, 'event');
+  });
 } catch {
   // Telemetry is never worth breaking a run over.
 }
