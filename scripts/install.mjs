@@ -13,7 +13,9 @@
 //
 // Every agent is installed with a native rule denying `gh pr merge`. It holds even if the
 // myco plugin fails to load, which OpenCode survives with a single warning, but it is static:
-// it cannot read a project's merge_policy. Projects that set `merge_policy: autonomous` need
+// it cannot read a project's merge_policy, and it matches the command as the last plugin to
+// rewrite it left it, so a merge behind a wrapper such as rtk gets past it; the plugin's guard
+// looks through wrappers, and is the real check. Projects that set `merge_policy: autonomous` need
 // --allow-autonomous-merge, which leaves the rule out and leaves merging to the plugin's gate.
 // The flag applies to the whole install, so give it on every reinstall.
 //

@@ -163,3 +163,36 @@ describe('failing safe', () => {
     assert.equal(r.status, 0);
   });
 });
+
+describe('commands another plugin has wrapped', () => {
+  // A plugin that shrinks or rewrites command output puts the real command behind a wrapper
+  // before this guard runs, so the guard sees "node …/caveman shrink -- rm -rf x", not "rm -rf x".
+  // Seen in a live run. The guard must judge the command that will actually run.
+  const CAVEMAN = "'/opt/homebrew/bin/node' '/opt/homebrew/bin/caveman' shrink --";
+  table(
+    [
+      ['Bash', 'command', `${CAVEMAN} rm -rf .claude/team`],
+      ['Bash', 'command', `${CAVEMAN} cp draft.md .claude/team/project.md`],
+      ['Bash', 'command', `${CAVEMAN} echo hi > .claude/team/project.md`],
+      ['Bash', 'command', `${CAVEMAN} bash -c "echo x > src/a.ts"`],
+      ['Bash', 'command', 'rtk rm -rf .claude/team'],
+      ['Bash', 'command', 'rtk mv a.md agents/b.md'],
+      ['Bash', 'command', 'env FOO=1 mv a.md agents/b.md'],
+      ['Bash', 'command', 'time touch src/x.ts'],
+      ['Bash', 'command', 'nohup rm -rf .claude/team'],
+      ['Bash', 'command', 'rtk sudo rm -rf .claude/team'],
+    ],
+    2,
+  );
+  table(
+    [
+      ['Bash', 'command', `${CAVEMAN} git log --oneline -5`],
+      ['Bash', 'command', `${CAVEMAN} cat notes.md`],
+      ['Bash', 'command', `${CAVEMAN} cp .claude/ops/reports/a.md .claude/ops/reports/b.md`],
+      ['Bash', 'command', 'rtk git status'],
+      ['Bash', 'command', 'rtk rm .claude/ops/reports/old.md'],
+      ['Bash', 'command', 'env FOO=1 ls -la'],
+    ],
+    0,
+  );
+});

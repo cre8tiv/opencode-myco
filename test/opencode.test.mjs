@@ -72,6 +72,8 @@ describe('installed into OpenCode', { skip: !enabled && 'set MYCO_TEST_OPENCODE=
     assert.equal(decide('echo gh pr merge'), 'allow', 'a command that merely mentions it is not a merge');
     // What the backstop does not cover, which the plugin's guard does: the guard is the real check.
     assert.equal(decide('bash -c "gh pr merge 1"'), 'allow');
+    // The rule sees the command as the last plugin to rewrite it left it, so a wrapped merge gets past it; the guard looks through wrappers.
+    assert.equal(decide("'/opt/homebrew/bin/node' '/opt/homebrew/bin/caveman' shrink -- gh pr merge 5"), 'allow');
     assert.equal(decide('git push origin main'), 'allow');
   });
 

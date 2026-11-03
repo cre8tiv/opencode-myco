@@ -75,9 +75,23 @@ function commands(cmd) {
 
 // What can precede a command without changing what it is: `FOO=1 gh ...`, `sudo gh ...`.
 const PREFIX = /^(?:(?:\w+=\S*|sudo|time|command|&)\s+)+/i;
+
+// What a command can look like. Each is searched for anywhere in a command, not only at its start:
+// a plugin that rewrites or shrinks command output runs before the gate and hands it
+// "node …/caveman shrink -- gh pr merge 42" or "rtk gh pr merge 42", and a merge that begins with
+// a wrapper is still a merge. This was found when exactly that went through in a live run. The
+// quoted text of a command is already blanked, so a commit message that mentions merging is not one.
+//
+// A word starts a command at the beginning, after whitespace, after a quote, or after a path
+// separator ("/usr/local/bin/gh").
+const WORD = String.raw`(?:^|[\s/"'])`;
+// "gh --repo o/r pr merge", "gh -R o/r pr merge": options between gh and the subcommand.
+const GH_MERGE = new RegExp(`${WORD}gh(?:\\.exe)?(?:\\s+\\S+)*?\\s+pr\\s+merge\\b`, 'i');
+const GH_API = new RegExp(`${WORD}gh(?:\\.exe)?\\s+api\\b`, 'i');
+const AZ_PR = new RegExp(`${WORD}az\\s+repos\\s+pr\\s+(?:update|complete|set-auto-complete)\\b`, 'i');
 // `git -C dir push`, `git -c k=v push`: global options between git and the subcommand.
-const GIT_PUSH = /^git(?:\s+(?:-C|-c)\s+\S+|\s+--[\w-]+(?:=\S+)?)*\s+push\b/i;
-const SHELL_C = /^(?:bash|sh|zsh|pwsh|powershell)(?:\.exe)?(?:\s+[^"']*?)?\s+-(?:c|lc|command)\s+(["'])([\s\S]*)\1\s*$/i;
+const GIT_PUSH = new RegExp(`${WORD}git(?:\\s+(?:-C|-c)\\s+\\S+|\\s+--[\\w-]+(?:=\\S+)?)*\\s+push\\b`, 'i');
+const SHELL_C = new RegExp(`${WORD}(?:bash|sh|zsh|pwsh|powershell)(?:\\.exe)?(?:\\s+[^"']*?)?\\s+-(?:c|lc|command)\\s+(["'])([\\s\\S]*)\\1\\s*$`, 'i');
 
 // Does a `git push` command target the trunk? Tokens are checked rather than the raw
 // text so every spelling of the destination is caught: `main`, `HEAD:main`,
@@ -99,11 +113,11 @@ function mergeAttempt(cmd, trunk, depth = 0) {
   for (const { raw: rawCmd, blank: blankCmd } of commands(cmd)) {
     const raw = rawCmd.replace(PREFIX, '');
     const blank = blankCmd.replace(PREFIX, '');
-    if (/^gh(\.exe)?\s+pr\s+merge\b/i.test(blank)) return { what: 'gh pr merge', pr: prArgs(raw) };
+    if (GH_MERGE.test(blank)) return { what: 'gh pr merge', pr: prArgs(raw) };
     // The REST endpoint and the GraphQL mutation both complete a PR without `gh pr merge`.
-    if (/^gh(\.exe)?\s+api\b/i.test(blank) && /(\/pulls\/\d+\/merge\b|\bmergePullRequest\b)/i.test(raw))
+    if (GH_API.test(blank) && /(\/pulls\/\d+\/merge\b|\bmergePullRequest\b)/i.test(raw))
       return { what: 'gh api pull request merge', pr: apiPrArgs(raw) };
-    if (/^az\s+repos\s+pr\s+(update|complete|set-auto-complete)\b/i.test(blank) && /\b(completed|complete|--complete|--auto-complete)\b/i.test(raw))
+    if (AZ_PR.test(blank) && /\b(completed|complete|--complete|--auto-complete)\b/i.test(raw))
       return { what: 'az repos pr complete', pr: null };
     if (GIT_PUSH.test(blank) && pushesToTrunk(raw, trunk)) return { what: `git push to ${trunk}`, pr: null };
     // `bash -c "gh pr merge 1"`: the quoted text is the command here.
@@ -125,14 +139,22 @@ const unquote = (t) => (t || '').replace(/^["']+|["']+$/g, '');
 function prArgs(raw) {
   const tokens = raw.split(/\s+/);
   const out = [];
-  for (let i = tokens.findIndex((t) => /^merge$/i.test(t)) + 1; i < tokens.length; i++) {
+  const at = tokens.findIndex((t) => /^merge$/i.test(t));
+  // "gh --repo o/r pr merge 42": the repository comes before the subcommand.
+  const before = [];
+  for (let i = 0; i < at; i++) {
+    const tok = unquote(tokens[i]);
+    if (tok === '-R' || tok === '--repo') before.push('--repo', unquote(tokens[++i]));
+    else if (/^--repo=/.test(tok)) before.push(tok);
+  }
+  for (let i = at + 1; i < tokens.length; i++) {
     const tok = unquote(tokens[i]);
     if (tok === '-R' || tok === '--repo') out.push('--repo', unquote(tokens[++i]));
     else if (/^--repo=/.test(tok)) out.push(tok);
     else if (VALUE_FLAGS.has(tok)) i++;
     else if (!tok.startsWith('-') && !out.length) out.push(tok);
   }
-  return out;
+  return [...out, ...before];
 }
 
 // `gh api repos/o/r/pulls/42/merge`: the number and the repo are in the path.
