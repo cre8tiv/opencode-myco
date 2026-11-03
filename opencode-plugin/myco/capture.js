@@ -26,6 +26,22 @@
 import { isTeamAgent, loadCore, projectDirectory } from './core.js';
 import { createWorkTracker } from './work.js';
 
+/**
+ * What went wrong, as text: an error's message, else the error itself as JSON, else nothing. Never the
+ * literal "undefined" or "[object Object]", which is what String() would write.
+ * @param {any} err @returns {string | undefined}
+ */
+const errorText = (err) => {
+  if (err === undefined || err === null) return undefined;
+  if (typeof err === 'string') return err;
+  if (typeof err.message === 'string' && err.message) return err.message;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return undefined;
+  }
+};
+
 /** "[CLOUD-123] implement retry" names the work an agent's task belongs to. */
 const bracketTag = (description) => (String(description || '').match(/^\s*\[([^\]\s]+)\]/) || [])[1] || null;
 
@@ -90,7 +106,7 @@ export async function registerCapture(ctx, root, work = createWorkTracker(ctx)) 
             parentWork: parent,
             report: e.result?.output?.output,
             task: e.input.description,
-            error: e.status === 'completed' ? undefined : e.error?.message || String(e.error),
+            error: e.status === 'completed' ? undefined : errorText(e.error),
           });
         }
         return;
@@ -106,7 +122,7 @@ export async function registerCapture(ctx, root, work = createWorkTracker(ctx)) 
         parentWork: parentWorkFor(e.sessionID),
         tool: e.tool,
         input: e.input,
-        error: denied ? undefined : e.error?.message || String(e.error),
+        error: denied ? undefined : errorText(e.error),
         reason: denied ? [e.error?.message, e.error?.error?.rules && JSON.stringify(e.error.error.rules)].filter(Boolean).join('; ') : undefined,
       });
     } catch {
@@ -156,7 +172,7 @@ export async function registerCapture(ctx, root, work = createWorkTracker(ctx)) 
     const mine = sessions.get(d.sessionID);
     if (!mine?.agent || !isTeamAgent(mine.agent)) return;
     if (ev.type === 'session.execution.failed') {
-      emit({ event: 'StopFailure', agent: mine.agent, session: d.sessionID, work: workFor(d.sessionID), parentWork: parentWorkFor(d.sessionID), error: d.error?.message || (d.error && JSON.stringify(d.error)) });
+      emit({ event: 'StopFailure', agent: mine.agent, session: d.sessionID, work: workFor(d.sessionID), parentWork: parentWorkFor(d.sessionID), error: errorText(d.error) });
     } else if (ev.type === 'session.execution.succeeded' && !mine.parentID) {
       emit({ event: 'SessionEnd', agent: mine.agent, session: d.sessionID, work: workFor(d.sessionID) });
     }

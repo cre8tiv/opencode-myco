@@ -23,7 +23,8 @@ export const cap = (v, n) => (typeof v === 'string' && v.length > n ? v.slice(0,
  */
 export const targetOf = (input) => {
   const i = input || {};
-  return cap(i.command || i.file_path || i.path || i.pattern || i.url || i.subagent_type || i.agent, 300);
+  // pattern before path: a grep or glob names both, and what it searched for is the telling one.
+  return cap(i.command || i.file_path || i.pattern || i.path || i.url || i.subagent_type || i.agent, 300);
 };
 
 /**

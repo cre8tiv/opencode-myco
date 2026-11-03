@@ -144,6 +144,28 @@ describe('tool failures and denials', () => {
     assert.deepEqual(await c.events(0), []);
   });
 
+  test('a grep records what it searched for, not the directory it searched', async (t) => {
+    const c = await capture(t);
+    c.after({ tool: 'grep', agent: IC, sessionID: 's', input: { pattern: 'TODO', path: 'src' }, status: 'error', error: { message: 'x' } });
+    c.after({ tool: 'glob', agent: IC, sessionID: 's', input: { pattern: '**/*.ts', path: 'src' }, status: 'error', error: { message: 'x' } });
+    assert.deepEqual((await c.events(2)).map((e) => e.target), ['TODO', '**/*.ts']);
+  });
+
+  test('an error with no message is never written as "undefined"', async (t) => {
+    const c = await capture(t);
+    const fail = (error) => c.after({ tool: 'shell', agent: IC, sessionID: 's', input: { command: 'x' }, status: 'error', error });
+    fail(undefined);
+    fail('plain text');
+    fail({ code: 7 });
+    fail({ message: '', code: 8 });
+    const rows = await c.events(4);
+    assert.equal('error' in rows[0], false);
+    assert.deepEqual(rows.slice(1).map((r) => r.error), ['plain text', '{"code":7}', '{"message":"","code":8}']);
+    // The same for a dispatch that failed.
+    c.after({ tool: 'subagent', agent: LEAD, sessionID: 's', input: { agent: IC, description: 'x', prompt: 'y' }, status: 'error', error: { code: 9 } });
+    assert.equal((await c.events(5))[4].error, '{"code":9}');
+  });
+
   test('a very long error is truncated, so one runaway failure cannot bloat the log', async (t) => {
     const c = await capture(t);
     c.after({ tool: 'shell', agent: IC, sessionID: 's', input: { command: 'x'.repeat(2000) }, status: 'error', error: { message: 'e'.repeat(5000) } });
@@ -364,11 +386,17 @@ describe('the guards', () => {
     assert.match(rows[0].reason, /merge_policy/);
   });
 
-  test('recording a block cannot change it or stop it', async (t) => {
+  test('a recorder that fails cannot change a block: the call is still stopped, with the guard\'s message', async (t) => {
+    const sb = sandbox(t);
+    install({ target: join(sb.root, 'oc') });
+    const hooks = {};
+    const ctx = { location: { directory: sb.project }, tool: { hook: async (name, fn) => { hooks[name] = fn; } } };
+    await registerGuards(ctx, join(sb.root, 'oc', 'myco'), { onBlock: () => { throw new Error('disk full'); } });
+    assert.throws(() => hooks['execute.before']({ agent: COACH, tool: 'shell', sessionID: 's', input: { command: 'echo x > c.txt' } }), (e) => /propose-only/.test(e.message) && !/disk full/.test(e.message));
+  });
+
+  test('recording a block never throws, whatever it is given', async (t) => {
     const c = await capture(t, { withGuards: true });
-    // A broken recorder: the guard still stops the call.
-    const broken = { ...c.cap, recordBlock: () => { throw new Error('disk full'); } };
-    assert.equal(typeof broken.recordBlock, 'function');
     assert.doesNotThrow(() => c.cap.recordBlock(undefined, 'x'));
     assert.doesNotThrow(() => c.cap.recordBlock({ agent: COACH, get input() { throw new Error('boom'); } }, 'x'));
   });
