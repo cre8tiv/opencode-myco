@@ -13,11 +13,8 @@
 // session comes from Claude Code's environment, the agent's full name and its unit of
 // work from the session's transcripts. --work overrides the work, for a report about
 // a package or ticket other than the one in hand; --ticket is its older name.
-import { appendFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { streamDir, resolveStreamName } from './stream.mjs';
 import { resolveSelf } from './context.mjs';
-import { exportEvent } from './otlp.mjs';
+import { recordFriction } from './friction-core.mjs';
 
 const a = process.argv.slice(2);
 const get = (f) => {
@@ -40,21 +37,17 @@ try {
     ctx = resolveSelf(process.env.CLAUDE_CODE_SESSION_ID, name);
   } catch { /* the report matters more than its context */ }
   const work = get('--work') || get('--ticket');
-  const rec = {
-    ts: new Date().toISOString(),
-    agent: ctx.agent,
-    agent_id: ctx.agent_id || undefined,
-    session: ctx.session || undefined,
-    work: work || ctx.work || undefined,
-    parent_work: ctx.parent_work || undefined,
-    kind: get('--kind') || 'unspecified',
-    note: note.slice(0, 1000),
+  await recordFriction({
     cwd: process.cwd(),
-  };
-  const dir = streamDir(process.cwd());
-  appendFileSync(join(dir, 'friction.jsonl'), JSON.stringify(rec) + '\n', 'utf8');
+    agent: ctx.agent,
+    agentId: ctx.agent_id,
+    session: ctx.session,
+    work: work || ctx.work,
+    parentWork: ctx.parent_work,
+    kind: get('--kind'),
+    note,
+  });
   console.log('friction logged');
-  await exportEvent(dir, resolveStreamName(process.cwd()), rec, 'friction');
 } catch (err) {
   console.error('friction log failed:', err.message);
   process.exit(1);

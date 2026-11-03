@@ -77,6 +77,30 @@ describe('installed into OpenCode', { skip: !enabled && 'set MYCO_TEST_OPENCODE=
     assert.equal(decide('git push origin main'), 'allow');
   });
 
+  test('start_work and log_friction are offered to agents as tools', async (t) => {
+    // No tool-listing endpoint exists, so a probe plugin asks the host from a hook that runs while the
+    // server is handling a request, after every plugin has set up.
+    const { dir, oc } = project(t);
+    mkdirSync(join(dir, '.opencode', 'plugins', 'toolprobe'), { recursive: true });
+    const out = join(dir, 'tools.json');
+    writeFileSync(join(dir, '.opencode', 'plugins', 'toolprobe', 'index.js'),
+      'import { writeFileSync } from "node:fs";\n' +
+      'export default { id: "toolprobe", async setup(ctx) { await ctx.shell.hook("create.before", async () => {\n' +
+      '  try { const l = await ctx.tool.list(); const a = Array.isArray(l) ? l : (l.data || l.items || Object.values(l));\n' +
+      '    writeFileSync(' + JSON.stringify(out) + ', JSON.stringify(a.map((x) => (typeof x === "string" ? x : x.name || x.id))));\n' +
+      '  } catch (e) { writeFileSync(' + JSON.stringify(out) + ', JSON.stringify({ error: String(e) })); }\n' +
+      '}); } };\n');
+    const id = JSON.parse(oc('api', 'POST', '/api/session', '-d', '{"title":"myco-test"}').stdout).data.id;
+    t.after(() => oc('session', 'delete', id));
+    oc('api', 'POST', `/api/session/${id}/shell`, '-d', JSON.stringify({ command: 'echo hi' }));
+    let names;
+    for (let i = 0; i < 40 && !names; i++) {
+      try { names = JSON.parse(readFileSync(out, 'utf8')); } catch { await new Promise((r) => setTimeout(r, 250)); }
+    }
+    assert.ok(Array.isArray(names), JSON.stringify(names));
+    for (const tool of ['start_work', 'log_friction']) assert.ok(names.includes(tool), `${tool} is not among ${names.join(', ')}`);
+  });
+
   test('no Claude Code key reaches the provider request', (t) => {
     const { oc } = project(t);
     const agents = JSON.parse(oc('debug', 'agents').stdout).filter((a) => a.id.includes('/'));
