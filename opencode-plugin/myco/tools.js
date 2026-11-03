@@ -7,6 +7,7 @@
 // Telemetry never blocks delivery: a tool that cannot do its job says so in its result and
 // does not throw.
 import { loadCore, projectDirectory } from './core.js';
+import { createWorkTracker } from './work.js';
 
 /** What an agent can say cost it time (team-ops/scripts/friction-core.mjs). */
 const KINDS = ['instructions', 'tooling', 'permissions', 'scope', 'environment', 'handoff'];
@@ -19,29 +20,11 @@ const reply = (content) => ({ content });
 /**
  * Registers start_work and log_friction on a plugin context.
  * @param {any} ctx the OpenCode plugin context @param {string} root the install root (<config>/myco)
+ * @param {ReturnType<typeof createWorkTracker>} [work] the work each session named; shared with whatever reads it
  * @returns {Promise<{friction: boolean}>} whether friction logging is available
  */
-export async function registerTools(ctx, root) {
+export async function registerTools(ctx, root, work = createWorkTracker(ctx)) {
   const friction = await loadCore(root, 'team-ops', 'friction-core.mjs');
-  /** @type {Map<string, string>} the work each session named, by session */
-  const work = new Map();
-
-  /** @param {string | undefined} sessionID @returns {Promise<string | undefined>} */
-  async function currentWork(sessionID) {
-    if (!sessionID) return undefined;
-    if (work.has(sessionID)) return work.get(sessionID);
-    try {
-      const saved = await ctx.storage?.get?.(`work/${sessionID}`);
-      if (typeof saved === 'string' && saved) {
-        work.set(sessionID, saved);
-        return saved;
-      }
-    } catch {
-      // Storage is a convenience across restarts; the in-memory tag is authoritative.
-    }
-    return undefined;
-  }
-
   await ctx.tool.transform((editor) => {
     editor.add({
       name: 'start_work',
@@ -64,12 +47,7 @@ export async function registerTools(ctx, root) {
         if (!TAG.test(tag)) return reply('start_work needs one tag with no spaces, such as order-exceptions/round-2 or CLOUD-123. Put anything else in note.');
         const sessionID = context?.sessionID;
         if (!sessionID) return reply('start_work could not tell which session this is, so nothing was recorded. Carry on.');
-        work.set(sessionID, tag);
-        try {
-          await ctx.storage?.set?.(`work/${sessionID}`, tag);
-        } catch {
-          // See currentWork.
-        }
+        await work.set(sessionID, tag);
         return reply(`Work is now ${tag}.`);
       },
     });
@@ -111,7 +89,7 @@ export async function registerTools(ctx, root) {
             cwd: projectDirectory(ctx),
             agent: context?.agent || 'unknown',
             session: sessionID,
-            work: (typeof input.work === 'string' && input.work.trim()) || (await currentWork(sessionID)),
+            work: (typeof input.work === 'string' && input.work.trim()) || (await work.current(sessionID)),
             kind: input.kind,
             note,
           });

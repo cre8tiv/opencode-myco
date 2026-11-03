@@ -16,6 +16,9 @@ export async function loadCore(root, team, file) {
   }
 }
 
+/** A team agent is installed as team/role. Every OpenCode session has an agent (a human's is "build"), so plain names are not the teams'. */
+export const isTeamAgent = (name) => typeof name === 'string' && name.includes('/');
+
 /**
  * Where the project is: its profile (merge_policy, trunk_branch, stream) and its event stream
  * are found from here. OpenCode creates one plugin instance per location, and a session located

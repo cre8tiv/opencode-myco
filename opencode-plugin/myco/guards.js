@@ -7,20 +7,20 @@
 // team that isn't installed simply has no guard. Nothing here may stop legitimate work
 // because the guard itself broke: failing to load a core, or any error while judging a
 // call, lets the call through.
-import { loadCore, projectDirectory } from './core.js';
+import { isTeamAgent, loadCore, projectDirectory } from './core.js';
 
 /** Where the merge gate looks for the project profile (see core.js). */
 export const profileDirectory = projectDirectory;
 
-/** A team agent is installed as team/role. Every OpenCode session has an agent (a human's is "build"), so plain names are not the teams'. */
-export const isTeamAgent = (name) => typeof name === 'string' && name.includes('/');
+export { isTeamAgent };
 
 /**
  * Registers the guards on a plugin context.
  * @param {any} ctx the OpenCode plugin context @param {string} root the install root (<config>/myco)
+ * @param {{onBlock?: (event: any, message: string) => void}} [opts] onBlock hears of each call the guards stop, for the record
  * @returns {Promise<{coach: boolean, merge: boolean}>} which guards loaded
  */
-export async function registerGuards(ctx, root) {
+export async function registerGuards(ctx, root, { onBlock } = {}) {
   const coach = await loadCore(root, 'team-ops', 'coach-guard-core.mjs');
   const merge = await loadCore(root, 'engineering-team', 'merge-gate-core.mjs');
 
@@ -35,7 +35,14 @@ export async function registerGuards(ctx, root) {
     } catch {
       // A broken guard must never block legitimate work.
     }
-    if (message) throw new Error(message);
+    if (message) {
+      try {
+        onBlock?.(event, message);
+      } catch {
+        // Recording a block must not change it.
+      }
+      throw new Error(message);
+    }
   });
 
   return { coach: !!coach, merge: !!merge };
