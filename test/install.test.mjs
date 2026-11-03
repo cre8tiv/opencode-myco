@@ -122,7 +122,9 @@ describe('install', () => {
       assert.doesNotMatch(text, /\$MYCO_ROOT|CLAUDE_PLUGIN_ROOT/, f);
       // Every place the text names a path under the install root: take the path characters after it.
       for (let at = text.indexOf(`${root}/`); at >= 0; at = text.indexOf(`${root}/`, at + 1)) {
-        const path = text.slice(at).match(/^[\w./:-]*[\w-]/)[0];
+        // Up to whitespace or a closing quote or bracket (a Windows temp path can hold "~", as in RUNNER~1),
+        // less any sentence punctuation that follows the path.
+        const path = text.slice(at).match(/^[^\s"'`)\]]+/)[0].replace(/[.,;:]+$/, '');
         named++;
         assert.ok(existsSync(path), `${f} names ${path}, which was not installed`);
       }
