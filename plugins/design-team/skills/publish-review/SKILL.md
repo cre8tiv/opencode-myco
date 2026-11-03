@@ -29,12 +29,12 @@ Artifact links are `claude.ai/artifact/<id>`; the id can't be chosen. What makes
 
 1. **Re-read every document in the package**, in full. The human may have edited any of them since you last did.
 
-2. **Write or update `review.md`** in the package from `${CLAUDE_PLUGIN_ROOT}/templates/review-summary.md`. This is the Overview reviewers read first. Write it for someone who hasn't opened the package, link to the documents rather than restating them, and make *What we want feedback on* specific — questions naming who is best placed to answer, not "thoughts?". If `review.md` exists, update it: a human may have edited it. If the package hasn't passed its readiness checks, say plainly at the top of the Overview that this is a draft review and what isn't settled yet.
+2. **Write or update `review.md`** in the package from `$MYCO_ROOT/design-team/templates/review-summary.md`. This is the Overview reviewers read first. Write it for someone who hasn't opened the package, link to the documents rather than restating them, and make *What we want feedback on* specific — questions naming who is best placed to answer, not "thoughts?". If `review.md` exists, update it: a human may have edited it. If the package hasn't passed its readiness checks, say plainly at the top of the Overview that this is a draft review and what isn't settled yet.
 
 3. **Commit, then render.** Commit the package (by path, never `git add -A`) so the page can name the commit it was rendered from, then:
 
    ```
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/render-review.mjs" package --dir <packages_dir>/<slug> --title "<title>" --round <n> --out <scratchpad>/<slug>-review.html
+   node "$MYCO_ROOT/design-team/scripts/render-review.mjs" package --dir <packages_dir>/<slug> --title "<title>" --round <n> --out <scratchpad>/<slug>-review.html
    ```
 
    `<scratchpad>` is your session's scratchpad directory, or the system temp directory if you have none. Render there, not into the repository: the HTML is derived from the markdown, and a committed copy would drift from it. The script reports the file's size; it must stay under 16 MB.
@@ -60,7 +60,7 @@ Artifact links are `claude.ai/artifact/<id>`; the id can't be chosen. What makes
 The hub lists every package in `packages_dir` with its status, owner, last update and review link — one link for the whole project's design work.
 
 ```
-node "${CLAUDE_PLUGIN_ROOT}/scripts/render-review.mjs" hub --dir <packages_dir> --title "<product_name> design packages" --out <scratchpad>/design-hub.html
+node "$MYCO_ROOT/design-team/scripts/render-review.mjs" hub --dir <packages_dir> --title "<product_name> design packages" --out <scratchpad>/design-hub.html
 ```
 
 Publish it to `review_hub` from `design.md` (reading it first if you haven't this conversation), or, the first time, as a new artifact with `icon: "folder"` — then write its link into `design.md`'s `review_hub` and commit. Republish whenever a package's status or review link changes.

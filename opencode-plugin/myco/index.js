@@ -8,9 +8,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'myco'
 export default {
   id: 'myco',
   async setup(ctx) {
-    // Agents and skills run scripts as $MYCO_ROOT/<team>/scripts/..., the OpenCode
-    // counterpart of Claude Code's ${CLAUDE_PLUGIN_ROOT}. A command that prints this
-    // variable is also how to tell the plugin loaded.
+    // The installer writes the real install path into agent and skill text, so nothing
+    // depends on this variable; it is there for commands people run themselves, and a
+    // command that prints it is how to tell the plugin loaded.
     await ctx.shell.hook('create.before', (event) => {
       event.env = { ...event.env, MYCO_ROOT: ROOT };
     });

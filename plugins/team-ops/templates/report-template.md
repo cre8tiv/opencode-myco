@@ -23,7 +23,7 @@ design_decisions_superseded: 0
 design_specialist_rework: 0
 # between teams: design problems engineering routed back to a package
 handoff_design_issues: 0
-# API-equivalent cost in the window, from the usage log (team-ops:cost-report); null if none recorded
+# API-equivalent cost in the window, from the usage log (cost-report); null if none recorded
 cost_usd: null
 proposals: 0
 proposals_net_lines: 0
@@ -64,7 +64,7 @@ control or ADR it concerned.
 
 ## Cost
 
-From `team-ops:cost-report` for the window, API-equivalent at list prices. Cost per
+From `cost-report` for the window, API-equivalent at list prices. Cost per
 outcome, not just totals: per design package and round, per ticket or phase, and the
 cost of work that was redone — rounds reopened, tickets that failed QA, design problems
 routed back. Name the biggest spenders and anything out of proportion.

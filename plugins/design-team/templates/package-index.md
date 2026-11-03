@@ -79,7 +79,7 @@ Written for the engineering tech lead. It will turn this into tickets; don't pre
 To start:
 
 ```
-claude --agent engineering-team:tech-lead
+opencode        # select the engineering-team/tech-lead agent (Tab cycles agents)
 > Implement phase 1 of <packages_dir>/<slug>/
 ```
 

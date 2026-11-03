@@ -26,7 +26,7 @@ Look at the surfaces this work sits beside — the screens, commands or messages
 
 ## Write ux.md
 
-Use `${CLAUDE_PLUGIN_ROOT}/templates/ux-template.md`. `ux.md` is the source of truth engineering and QA read, whatever else you produce.
+Use `$MYCO_ROOT/design-team/templates/ux-template.md`. `ux.md` is the source of truth engineering and QA read, whatever else you produce.
 
 - **Flows** as Mermaid flowcharts, one per job an actor is trying to do, each referencing the actor ID, the scenario it walks through, and the requirement IDs it satisfies. Use the scenario's concrete values. Include where the flow fails and where the user can abandon.
 - **Surface inventory**: every screen, dialog, command, email or notification, with its purpose.
@@ -63,4 +63,4 @@ Link every prototype from `ux.md`, next to the surface it shows. A published pro
 - **Every flow ends somewhere.** Success, a recoverable error with a next step, or an explicit dead end you've flagged. A flow that trails off is a gap.
 - <!-- shared:specialist-commit -->**Don't commit.** The product-lead commits once per round. You may be running alongside another specialist in the same working tree, and a commit from either of you would sweep up the other's half-written edits.<!-- /shared:specialist-commit -->
 - <!-- shared:status-line -->Keep the status line current: "Draft — N open questions", then "All open questions resolved".<!-- /shared:status-line -->
-- <!-- shared:friction -->**Log process friction when you hit it.** If something about *how you were asked to work* cost you time — your definition was unclear or silent, a tool you needed wasn't available, a task arrived too vague to scope, a handoff lost information — log it with the `team-ops:log-friction` skill. `agent-coach` reads these, and you are the only witness to your own instructions being ambiguous. Log it and carry on; don't stop work over it, and don't log ordinary product bugs here.<!-- /shared:friction -->
+- <!-- shared:friction -->**Log process friction when you hit it.** If something about *how you were asked to work* cost you time — your definition was unclear or silent, a tool you needed wasn't available, a task arrived too vague to scope, a handoff lost information — log it with the `log-friction` skill. `agent-coach` reads these, and you are the only witness to your own instructions being ambiguous. Log it and carry on; don't stop work over it, and don't log ordinary product bugs here.<!-- /shared:friction -->

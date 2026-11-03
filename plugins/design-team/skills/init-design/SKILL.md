@@ -31,7 +31,7 @@ Run this in the user's main session, not as a subagent: some of what you detect 
 
 ## 2. Ask only the gaps
 
-Use `AskUserQuestion`, batching related questions, and offer what you detected as the recommended option. Realistic gaps:
+Use `question`, batching related questions, and offer what you detected as the recommended option. Realistic gaps:
 
 - **Where packages live** — confirm the detected directory, or propose `docs/design/`.
 - **Where packages are published, if anywhere.** Offer only destinations whose tools you found. For a destination, get the exact location — look up real spaces, parent pages, databases or projects with its tools and offer those, rather than asking the user to type an ID. Ask what gets published, and when.
@@ -56,13 +56,13 @@ Don't ask about anything the user can't act on, and take a correction without re
 
 ### Knowledge sources
 
-Run the `team-ops:init-knowledge` skill now. It finds every documentation and knowledge source this project can reach — including MCP servers named after the product or an internal system, and connectors that exist but aren't authorized — and every codebase the work touches beyond this repository, asks what each is for, and writes the shared `.claude/team/knowledge.md` that every team's agents read. If the file already exists because the other team's setup wrote it, the skill confirms and fills gaps rather than asking again. When it finishes, carry on here.
+Run the `init-knowledge` skill now. It finds every documentation and knowledge source this project can reach — including MCP servers named after the product or an internal system, and connectors that exist but aren't authorized — and every codebase the work touches beyond this repository, asks what each is for, and writes the shared `.claude/team/knowledge.md` that every team's agents read. If the file already exists because the other team's setup wrote it, the skill confirms and fills gaps rather than asking again. When it finishes, carry on here.
 
 For the design team, its question **"is the code this work changes in this repository, or somewhere else?"** matters most: if it's elsewhere, that repository is what the architect and tech designer ground in, and the design is worth little if they can't read it. Make sure the answer is recorded and the repository is readable before moving on.
 
 ## 3. Write the profile
 
-Copy `${CLAUDE_PLUGIN_ROOT}/templates/design-profile.md` to `.claude/team/design.md` and fill it in.
+Copy `$MYCO_ROOT/design-team/templates/design-profile.md` to `.claude/team/design.md` and fill it in.
 
 - **Replace or remove every placeholder.** An agent will read a leftover `<...>` as literal.
 - **Keep the frontmatter keys exactly as templated.** `stream` is read by the team-ops telemetry hooks — if both profiles exist it must match `project.md`, or the teams' activity splits across two streams and cross-team handoffs become invisible. `packages_dir`, `publish_to`, `ux_prototypes`, `review_pages`, `product_name` and `review_hub` are read by the agents.
@@ -79,7 +79,7 @@ Check each thing the profile names, with a cheap read-only call, and report whic
 - Each grounding and context source answers a read: a tracker search, a wiki page, a Figma file's metadata.
 - If `ux_prototypes` is `claude-design`, a Design type was present in a quickstart you ran after any consent was granted.
 - Each design artifact you recorded as a reference can be read (`Artifact` read), and each repo design-system path exists.
-- Telemetry resolves to the configured stream: invoke the `team-ops:log-friction` skill once with kind `tooling` and the note "init-design smoke test", and check the entry landed in `~/.claude/ops/<stream>/friction.jsonl`. If it landed in a directory named after the working directory, `stream:` isn't being read — check the frontmatter.
+- Telemetry resolves to the configured stream: invoke the `log-friction` skill once with kind `tooling` and the note "init-design smoke test", and check the entry landed in `~/.claude/ops/<stream>/friction.jsonl`. If it landed in a directory named after the working directory, `stream:` isn't being read — check the frontmatter.
 
 Never write to a destination to test it. A test page in someone's Confluence space is a mess you've made in their system.
 
@@ -98,11 +98,11 @@ Then end with **one concrete next step**, not a menu. Pick it from what you lear
 
 How you phrase that step depends on where you're running — check before you write it:
 
-- **You are the product lead** — this session was started as `design-team:product-lead`, so your own instructions describe that role. Don't tell the user to start a session; they're in it. Ask whether to go ahead — *"Setup's done. Shall I adopt the PRD at <link> now?"* — and on a yes, continue straight into the product lead's step 0 in this conversation.
+- **You are the product lead** — this session was started as `design-team/product-lead`, so your own instructions describe that role. Don't tell the user to start a session; they're in it. Ask whether to go ahead — *"Setup's done. Shall I adopt the PRD at <link> now?"* — and on a yes, continue straight into the product lead's step 0 in this conversation.
 - **You're in any other session** — the product lead has to be the session agent for its decision loop, so the user needs a new session. Give them the exact command and a first message they can paste, and say why it's a new session:
 
   ```
-  claude --agent design-team:product-lead
+  opencode        # select the design-team/product-lead agent (Tab cycles agents)
   > Adopt the PRD at <link>
   ```
 

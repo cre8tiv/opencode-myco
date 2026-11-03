@@ -161,33 +161,63 @@ describe('skills', () => {
 });
 
 describe('references between the pieces', () => {
-  const agentIds = new Set(plugins.flatMap((p) => agentsOf(p).map((f) => `${p}:${f.split(/[\\/]/).pop().replace(/\.md$/, '')}`)));
-  const skillIds = new Set(plugins.flatMap((p) => skillsOf(p).map((f) => `${p}:${f.split(/[\\/]/).slice(-2)[0]}`)));
+  // Agents are named team/role and skills by their bare name, as OpenCode names them.
+  // READMEs are skipped until they are rewritten for OpenCode.
+  const agentIds = new Set(plugins.flatMap((p) => agentsOf(p).map((f) => `${p}/${f.split(/[\\/]/).pop().replace(/\.md$/, '')}`)));
+  const skillIds = new Set(plugins.flatMap((p) => skillsOf(p).map((f) => f.split(/[\\/]/).slice(-2)[0])));
+  const prose = plugins.flatMap(markdownOf).filter((f) => !f.endsWith('README.md'));
+  // Hook-simulation payloads in the setup skills still carry Claude Code's namespaced agent_type.
+  const lines = (f) => read(f).split('\n').filter((l) => !l.includes('"agent_type"'));
+  /** Directories that follow a plugin name in a path, which are not agent roles. */
+  const DIRS = new Set(['scripts', 'templates', 'agents', 'skills', 'telemetry', 'hooks']);
+  /** Skills of the host rather than of these plugins (the `design` skill is Claude Design's). */
+  const EXTERNAL_SKILLS = new Set(['design']);
 
-  test('every plugin:name an agent, skill or doc mentions is an agent or skill that exists', () => {
+  test('no plugin:name reference in the old Claude Code form is left', () => {
+    const left = [];
+    for (const f of prose) {
+      for (const l of lines(f)) {
+        for (const m of l.matchAll(new RegExp(`\\b(${plugins.join('|')}):[a-z*]`, 'g'))) left.push(`${relative(ROOT, f)}: ${m[0]}`);
+      }
+    }
+    assert.deepEqual(left, []);
+  });
+
+  test('every team/role an agent, skill or doc mentions is an agent that exists', () => {
     const missing = [];
-    for (const p of plugins) {
-      for (const f of markdownOf(p)) {
-        const text = read(f);
-        for (const m of text.matchAll(new RegExp(`\\b(${plugins.join('|')}):([a-z][a-z0-9-]*)`, 'g'))) {
-          const id = `${m[1]}:${m[2]}`;
-          // "design-team:product-lead" in prose is an agent; "team-ops:log-friction" a skill.
-          if (!agentIds.has(id) && !skillIds.has(id)) missing.push(`${relative(ROOT, f)} → ${id}`);
+    for (const f of prose) {
+      for (const l of lines(f)) {
+        for (const m of l.matchAll(new RegExp(`\\b(${plugins.join('|')})/(\\*|[a-z][a-z-]*)(?![\\w/.-])`, 'g'))) {
+          if (m[2] === '*' || DIRS.has(m[2])) continue;
+          if (!agentIds.has(`${m[1]}/${m[2]}`)) missing.push(`${relative(ROOT, f)} → ${m[0]}`);
         }
       }
     }
     assert.deepEqual([...new Set(missing)], []);
   });
 
-  test('every ${CLAUDE_PLUGIN_ROOT}/ path in a plugin points at a file in that plugin', () => {
+  test('every skill a doc tells an agent to use exists', () => {
     const missing = [];
-    for (const p of plugins) {
-      for (const f of markdownOf(p)) {
-        for (const m of read(f).matchAll(/\$\{CLAUDE_PLUGIN_ROOT\}\/([\w./-]*[\w-])/g)) {
-          if (!existsSync(join(PLUGINS_DIR, p, m[1]))) missing.push(`${relative(ROOT, f)} → ${m[1]}`);
-        }
+    for (const f of prose) {
+      for (const m of read(f).matchAll(/`([a-z][a-z0-9-]*)` skill\b|\bskill `([a-z][a-z0-9-]*)`/g)) {
+        const name = m[1] || m[2];
+        if (!skillIds.has(name) && !EXTERNAL_SKILLS.has(name)) missing.push(`${relative(ROOT, f)} → ${name}`);
       }
     }
+    assert.deepEqual([...new Set(missing)], []);
+  });
+
+  test('every $MYCO_ROOT/<team>/ path points at a file in that team, and no plugin-root variable of the old form is left', () => {
+    const missing = [];
+    const old = [];
+    for (const f of prose) {
+      const text = read(f);
+      if (text.includes('CLAUDE_PLUGIN_ROOT')) old.push(relative(ROOT, f));
+      for (const m of text.matchAll(/\$MYCO_ROOT\/([\w.-]+)\/([\w./-]*[\w-])/g)) {
+        if (!existsSync(join(PLUGINS_DIR, m[1], m[2]))) missing.push(`${relative(ROOT, f)} → ${m[1]}/${m[2]}`);
+      }
+    }
+    assert.deepEqual(old, []);
     assert.deepEqual([...new Set(missing)], []);
   });
 

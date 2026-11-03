@@ -7,7 +7,7 @@
 // and skills are copied into its config directory as files:
 //
 //   <target>/agents/<team>/<role>.md   agents, with their frontmatter rewritten for OpenCode
-//   <target>/skills/<name>/            skills, copied as they are
+//   <target>/skills/<name>/            skills
 //   <target>/myco/<team>/              each team's scripts and templates ($MYCO_ROOT/<team>)
 //   <target>/plugins/myco/             the plugin that provides $MYCO_ROOT
 //
@@ -15,17 +15,22 @@
 // ./.opencode. Prefer --global: OpenCode resolves agents and plugins per directory, so a
 // git worktree sees a project install only if .opencode is committed.
 //
+// The sources write the install root as $MYCO_ROOT (for example
+// $MYCO_ROOT/team-ops/scripts/friction.mjs). OpenCode doesn't substitute variables in
+// agent or skill text, and a model's `read` call can't expand one, so this script writes
+// the real absolute path into the installed copies.
+//
 // The agent sources keep their Claude Code frontmatter, so they stay identical to
 // upstream; this script is where it becomes OpenCode's. Only what the script owns is
 // replaced on a reinstall: a user's own agents, skills and models.json are left alone.
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { AGENT_MAP, checkModels, modelLines, refFor } from '../plugins/team-ops/scripts/models.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const AGENT_MAP = JSON.parse(readFileSync(join(ROOT, 'scripts', 'opencode-agents.json'), 'utf8')).agents;
-const TIERS = [...new Set(Object.values(AGENT_MAP).map((a) => a.tier))];
 /** Team directories copied under <target>/myco/<team>. */
 const TEAM_ASSETS = ['scripts', 'templates'];
 
@@ -66,30 +71,6 @@ function permissionLines(perm) {
 }
 
 /**
- * "provider/model" or "provider/model#variant", the form `opencode run --model` takes.
- * @param {string} ref @returns {{model: string, variant?: string}}
- */
-export function parseModelRef(ref) {
-  const m = String(ref).match(/^([^/\s#]+\/[^\s#]+)(?:#([^\s#]+))?$/);
-  if (!m) throw new Error(`model "${ref}" is not provider/model or provider/model#variant`);
-  return m[2] ? { model: m[1], variant: m[2] } : { model: m[1] };
-}
-
-/**
- * The user's model mapping: tiers, with optional per-agent overrides.
- *   { "tiers": { "lead": "provider/model#variant", ... }, "agents": { "team/role": "provider/model" } }
- * @param {any} raw @returns {{tiers: Record<string, string>, agents: Record<string, string>}}
- */
-export function checkModels(raw) {
-  const tiers = raw?.tiers || {};
-  const agents = raw?.agents || {};
-  for (const t of Object.keys(tiers)) if (!TIERS.includes(t)) throw new Error(`models: unknown tier "${t}" (tiers are ${TIERS.join(', ')})`);
-  for (const a of Object.keys(agents)) if (!AGENT_MAP[a]) throw new Error(`models: unknown agent "${a}"`);
-  for (const ref of [...Object.values(tiers), ...Object.values(agents)]) parseModelRef(ref);
-  return { tiers, agents };
-}
-
-/**
  * An agent as OpenCode wants it: description kept; mode, model, variant and permission
  * from the install map and the user's model mapping; every other Claude Code key
  * dropped. OpenCode ignores keys it doesn't know and forwards them to the provider as
@@ -99,19 +80,30 @@ export function checkModels(raw) {
  */
 export function transformAgent({ id, text, models = { tiers: {}, agents: {} } }) {
   const entry = AGENT_MAP[id];
-  if (!entry) throw new Error(`${id}: not in scripts/opencode-agents.json`);
+  if (!entry) throw new Error(`${id}: not in plugins/team-ops/scripts/opencode-agents.json`);
   const { keys, body } = splitAgent(text, id);
   const description = keys.get('description');
   if (!description) throw new Error(`${id}: no description`);
-  const ref = models.agents[id] || models.tiers[entry.tier];
+  const ref = refFor(models, id);
   const fm = [`description: ${q(description)}`, `mode: ${entry.mode}`];
-  if (ref) {
-    const { model, variant } = parseModelRef(ref);
-    fm.push(`model: ${q(model)}`);
-    if (variant) fm.push(`variant: ${q(variant)}`);
-  }
+  if (ref) fm.push(...modelLines(ref));
   if (entry.permission) fm.push(...permissionLines(entry.permission));
   return `---\n${fm.join('\n')}\n---\n${body}`;
+}
+
+/** The install root as written into agent and skill text: forward slashes on every platform. */
+const rootText = (target) => join(target, 'myco').split(sep).join('/');
+
+/** @param {string} text @param {string} root @returns {string} text with $MYCO_ROOT replaced by the real path */
+export const withRoot = (text, root) => text.replaceAll('$MYCO_ROOT', root);
+
+/** @param {string} dir @param {(text: string) => string} fn rewrites every markdown file below dir in place */
+function rewriteMarkdown(dir, fn) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name);
+    if (e.isDirectory()) rewriteMarkdown(p, fn);
+    else if (e.name.endsWith('.md')) writeFileSync(p, fn(readFileSync(p, 'utf8')));
+  }
 }
 
 /** @param {string} dir @returns {string[]} names of the entries below dir */
@@ -132,9 +124,10 @@ export function install({ target, models, repo = ROOT }) {
   const unmapped = found.filter((id) => !AGENT_MAP[id]);
   const orphaned = Object.keys(AGENT_MAP).filter((id) => !found.includes(id));
   if (unmapped.length || orphaned.length) {
-    throw new Error(`scripts/opencode-agents.json is out of step with plugins/: no entry for [${unmapped}], no agent file for [${orphaned}]`);
+    throw new Error(`plugins/team-ops/scripts/opencode-agents.json is out of step with plugins/: no entry for [${unmapped}], no agent file for [${orphaned}]`);
   }
 
+  const root = rootText(target);
   const skills = [];
   for (const team of teams) {
     const base = join(repo, 'plugins', team);
@@ -142,11 +135,12 @@ export function install({ target, models, repo = ROOT }) {
     mkdirSync(join(target, 'agents', team), { recursive: true });
     for (const id of found.filter((i) => i.startsWith(`${team}/`))) {
       const text = readFileSync(join(base, 'agents', `${id.split('/')[1]}.md`), 'utf8');
-      writeFileSync(join(target, 'agents', `${id}.md`), transformAgent({ id, text, models: mapping }));
+      writeFileSync(join(target, 'agents', `${id}.md`), withRoot(transformAgent({ id, text, models: mapping }), root));
     }
     for (const name of ls(join(base, 'skills'))) {
       rmSync(join(target, 'skills', name), { recursive: true, force: true });
       cpSync(join(base, 'skills', name), join(target, 'skills', name), { recursive: true });
+      rewriteMarkdown(join(target, 'skills', name), (text) => withRoot(text, root));
       skills.push(name);
     }
     rmSync(join(target, 'myco', team), { recursive: true, force: true });
@@ -173,10 +167,22 @@ function main(argv) {
   );
   const modelsFile = get('--models') || (existsSync(join(target, 'myco', 'models.json')) ? join(target, 'myco', 'models.json') : null);
   const result = install({ target, models: modelsFile ? JSON.parse(readFileSync(modelsFile, 'utf8')) : undefined });
+  // A mapping given with --models becomes the install's own, so reinstalling and models.mjs agree with it.
+  const saved = join(target, 'myco', 'models.json');
+  if (modelsFile && resolve(modelsFile) !== resolve(saved)) copyFileSync(modelsFile, saved);
   console.log(
     `Installed ${result.agents.length} agents, ${result.skills.length} skills and the myco plugin into ${target}` +
       (modelsFile ? ` (models from ${modelsFile})` : ' (no model mapping: agents use your default model)'),
   );
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) main(process.argv.slice(2));
+/** Whether this file is the one being run. Both sides are resolved: a symlinked path (a macOS temp directory, a dotfiles-managed config) differs from the real one, and the script would silently do nothing. */
+const isMain = () => {
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+};
+
+if (isMain()) main(process.argv.slice(2));

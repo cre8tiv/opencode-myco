@@ -29,7 +29,7 @@ The codebase you're extending may not be this repository. `knowledge.md`'s *Code
 
 ## Write tech-design.md
 
-Use `${CLAUDE_PLUGIN_ROOT}/templates/tech-design-template.md`.
+Use `$MYCO_ROOT/design-team/templates/tech-design-template.md`.
 
 - **Interfaces and contracts** exactly enough to implement against: endpoints or messages, request and response shapes, errors, versioning. Show them in the project's own notation where it has one.
 - **Data model and migrations**: what changes, whether each migration is reversible, and how it behaves on existing data at production volume.
@@ -56,4 +56,4 @@ Use `${CLAUDE_PLUGIN_ROOT}/templates/tech-design-template.md`.
 - **Trace, don't restate.** Reference requirement IDs, ADR numbers and `SEC-n` controls rather than copying their text; copies drift.
 - <!-- shared:specialist-commit -->**Don't commit.** The product-lead commits once per round. You may be running alongside another specialist in the same working tree, and a commit from either of you would sweep up the other's half-written edits.<!-- /shared:specialist-commit -->
 - <!-- shared:status-line -->Keep the status line current: "Draft — N open questions", then "All open questions resolved".<!-- /shared:status-line -->
-- <!-- shared:friction -->**Log process friction when you hit it.** If something about *how you were asked to work* cost you time — your definition was unclear or silent, a tool you needed wasn't available, a task arrived too vague to scope, a handoff lost information — log it with the `team-ops:log-friction` skill. `agent-coach` reads these, and you are the only witness to your own instructions being ambiguous. Log it and carry on; don't stop work over it, and don't log ordinary product bugs here.<!-- /shared:friction -->
+- <!-- shared:friction -->**Log process friction when you hit it.** If something about *how you were asked to work* cost you time — your definition was unclear or silent, a tool you needed wasn't available, a task arrived too vague to scope, a handoff lost information — log it with the `log-friction` skill. `agent-coach` reads these, and you are the only witness to your own instructions being ambiguous. Log it and carry on; don't stop work over it, and don't log ordinary product bugs here.<!-- /shared:friction -->
