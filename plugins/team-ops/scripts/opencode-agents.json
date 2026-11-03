@@ -1,5 +1,9 @@
 {
   "_comment": "How each team agent is installed into OpenCode. mode: primary agents are chosen as the session agent and are not delegated to; subagent agents are. tier: which model tier the agent takes from the user's model mapping. permission: OpenCode permission rules written into the agent; they replace Claude Code's disallowedTools. The agent-coach rules list a relative and an absolute form because patterns match the path as the tool was given it.",
+  "mergeBackstop": {
+    "_comment": "Written into every agent unless the install allows autonomous merging. A static deny: it holds even if the plugin fails to load, but cannot read a project's merge_policy, and only matches the command text, so the plugin's merge gate stays the real check.",
+    "shell": { "gh pr merge*": "deny", "gh * pr merge*": "deny" }
+  },
   "agents": {
     "design-team/product-lead": { "mode": "primary", "tier": "lead" },
     "design-team/architect": { "mode": "subagent", "tier": "reasoning" },

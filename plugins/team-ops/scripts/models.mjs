@@ -22,8 +22,11 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const INSTALL_MAP = JSON.parse(readFileSync(join(HERE, 'opencode-agents.json'), 'utf8'));
 /** @type {Record<string, {mode: string, tier: string, permission?: object}>} */
-export const AGENT_MAP = JSON.parse(readFileSync(join(HERE, 'opencode-agents.json'), 'utf8')).agents;
+export const AGENT_MAP = INSTALL_MAP.agents;
+/** @type {Record<string, Record<string, string>>} permission rules every agent gets unless merging is allowed */
+export const MERGE_BACKSTOP = Object.fromEntries(Object.entries(INSTALL_MAP.mergeBackstop).filter(([k]) => !k.startsWith('_')));
 export const TIERS = [...new Set(Object.values(AGENT_MAP).map((a) => a.tier))];
 
 /** Tokens a conversation needs beyond the agent's own prompt: tool schemas, instructions, work in progress. */

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Installs the myco teams into OpenCode.
 //
-//   node scripts/install.mjs --global | --project [--target <dir>] [--models <file>]
+//   node scripts/install.mjs --global | --project [--target <dir>] [--models <file>] [--allow-autonomous-merge]
 //
 // OpenCode has no plugin marketplace and its plugins cannot add agents, so the agents
 // and skills are copied into its config directory as files:
@@ -10,6 +10,12 @@
 //   <target>/skills/<name>/            skills
 //   <target>/myco/<team>/              each team's scripts and templates ($MYCO_ROOT/<team>)
 //   <target>/plugins/myco/             the plugin that provides $MYCO_ROOT
+//
+// Every agent is installed with a native rule denying `gh pr merge`. It holds even if the
+// myco plugin fails to load, which OpenCode survives with a single warning, but it is static:
+// it cannot read a project's merge_policy. Projects that set `merge_policy: autonomous` need
+// --allow-autonomous-merge, which leaves the rule out and leaves merging to the plugin's gate.
+// The flag applies to the whole install, so give it on every reinstall.
 //
 // --global installs into OpenCode's user config (~/.config/opencode), --project into
 // ./.opencode. Prefer --global: OpenCode resolves agents and plugins per directory, so a
@@ -28,7 +34,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { AGENT_MAP, checkModels, modelLines, refFor } from '../plugins/team-ops/scripts/models.mjs';
+import { AGENT_MAP, MERGE_BACKSTOP, checkModels, modelLines, refFor } from '../plugins/team-ops/scripts/models.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /** Team directories copied under <target>/myco/<team>. */
@@ -71,14 +77,30 @@ function permissionLines(perm) {
 }
 
 /**
+ * An agent's permission rules: its own, plus the merge backstop unless merging is allowed.
+ * Rules for the same action are combined, the agent's first.
+ * @param {Record<string, any> | undefined} own @param {boolean} backstop
+ * @returns {Record<string, any> | null}
+ */
+function permissionFor(own, backstop) {
+  const out = { ...(own || {}) };
+  if (backstop) {
+    for (const [action, rules] of Object.entries(MERGE_BACKSTOP)) {
+      out[action] = typeof out[action] === 'object' ? { ...out[action], ...rules } : rules;
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/**
  * An agent as OpenCode wants it: description kept; mode, model, variant and permission
  * from the install map and the user's model mapping; every other Claude Code key
  * dropped. OpenCode ignores keys it doesn't know and forwards them to the provider as
  * request parameters, so `isolation` and `disallowedTools` must not survive.
- * @param {{id: string, text: string, models?: ReturnType<typeof checkModels>}} p id is "team/role"
+ * @param {{id: string, text: string, models?: ReturnType<typeof checkModels>, mergeBackstop?: boolean}} p id is "team/role"
  * @returns {string}
  */
-export function transformAgent({ id, text, models = { tiers: {}, agents: {} } }) {
+export function transformAgent({ id, text, models = { tiers: {}, agents: {} }, mergeBackstop = true }) {
   const entry = AGENT_MAP[id];
   if (!entry) throw new Error(`${id}: not in plugins/team-ops/scripts/opencode-agents.json`);
   const { keys, body } = splitAgent(text, id);
@@ -87,7 +109,8 @@ export function transformAgent({ id, text, models = { tiers: {}, agents: {} } })
   const ref = refFor(models, id);
   const fm = [`description: ${q(description)}`, `mode: ${entry.mode}`];
   if (ref) fm.push(...modelLines(ref));
-  if (entry.permission) fm.push(...permissionLines(entry.permission));
+  const permission = permissionFor(entry.permission, mergeBackstop);
+  if (permission) fm.push(...permissionLines(permission));
   return `---\n${fm.join('\n')}\n---\n${body}`;
 }
 
@@ -114,10 +137,10 @@ const teamsIn = (repo) => ls(join(repo, 'plugins')).filter((n) => existsSync(joi
 
 /**
  * Installs every team under target.
- * @param {{target: string, models?: any, repo?: string}} p
+ * @param {{target: string, models?: any, repo?: string, mergeBackstop?: boolean}} p mergeBackstop: deny `gh pr merge` in every agent (default true)
  * @returns {{agents: string[], skills: string[], teams: string[]}}
  */
-export function install({ target, models, repo = ROOT }) {
+export function install({ target, models, repo = ROOT, mergeBackstop = true }) {
   const mapping = checkModels(models);
   const teams = teamsIn(repo);
   const found = teams.flatMap((t) => ls(join(repo, 'plugins', t, 'agents')).filter((f) => f.endsWith('.md')).map((f) => `${t}/${f.replace(/\.md$/, '')}`));
@@ -135,7 +158,7 @@ export function install({ target, models, repo = ROOT }) {
     mkdirSync(join(target, 'agents', team), { recursive: true });
     for (const id of found.filter((i) => i.startsWith(`${team}/`))) {
       const text = readFileSync(join(base, 'agents', `${id.split('/')[1]}.md`), 'utf8');
-      writeFileSync(join(target, 'agents', `${id}.md`), withRoot(transformAgent({ id, text, models: mapping }), root));
+      writeFileSync(join(target, 'agents', `${id}.md`), withRoot(transformAgent({ id, text, models: mapping, mergeBackstop }), root));
     }
     for (const name of ls(join(base, 'skills'))) {
       rmSync(join(target, 'skills', name), { recursive: true, force: true });
@@ -159,20 +182,22 @@ function main(argv) {
   const get = (f) => (argv.includes(f) ? argv[argv.indexOf(f) + 1] : undefined);
   const mode = argv.includes('--global') ? 'global' : argv.includes('--project') ? 'project' : null;
   if (!mode && !get('--target')) {
-    console.error('usage: install.mjs --global | --project [--target <dir>] [--models <file>]');
+    console.error('usage: install.mjs --global | --project [--target <dir>] [--models <file>] [--allow-autonomous-merge]');
     process.exit(2);
   }
   const target = resolve(
     get('--target') || (mode === 'global' ? join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'opencode') : join(process.cwd(), '.opencode')),
   );
   const modelsFile = get('--models') || (existsSync(join(target, 'myco', 'models.json')) ? join(target, 'myco', 'models.json') : null);
-  const result = install({ target, models: modelsFile ? JSON.parse(readFileSync(modelsFile, 'utf8')) : undefined });
+  const mergeBackstop = !argv.includes('--allow-autonomous-merge');
+  const result = install({ target, models: modelsFile ? JSON.parse(readFileSync(modelsFile, 'utf8')) : undefined, mergeBackstop });
   // A mapping given with --models becomes the install's own, so reinstalling and models.mjs agree with it.
   const saved = join(target, 'myco', 'models.json');
   if (modelsFile && resolve(modelsFile) !== resolve(saved)) copyFileSync(modelsFile, saved);
   console.log(
     `Installed ${result.agents.length} agents, ${result.skills.length} skills and the myco plugin into ${target}` +
-      (modelsFile ? ` (models from ${modelsFile})` : ' (no model mapping: agents use your default model)'),
+      (modelsFile ? ` (models from ${modelsFile})` : ' (no model mapping: agents use your default model)') +
+      (mergeBackstop ? '' : '; agents may run `gh pr merge` where a project\'s merge_policy allows it'),
   );
 }
 

@@ -51,6 +51,30 @@ describe('installed into OpenCode', { skip: !enabled && 'set MYCO_TEST_OPENCODE=
     assert.deepEqual(agents.get('design-team/architect').model, { id: 'model', providerID: 'test', variant: 'medium' });
   });
 
+  test('the merge backstop is compiled into every team agent and decides as documented', (t) => {
+    const { oc } = project(t);
+    const agents = JSON.parse(oc('debug', 'agents').stdout).filter((a) => a.id.includes('/'));
+    assert.equal(agents.length, 11);
+    for (const a of agents) {
+      const shell = a.permissions.filter((p) => p.action === 'shell').map((p) => `${p.resource}=${p.effect}`);
+      assert.deepEqual(shell.slice(-2), ['gh pr merge*=deny', 'gh * pr merge*=deny'], a.id);
+    }
+
+    // Give OpenCode's own permission engine the compiled rules and ask it about commands: no model involved.
+    const rules = agents.find((a) => a.id === 'engineering-team/ic-generalist').permissions;
+    const id = JSON.parse(oc('api', 'POST', '/api/session', '-d', JSON.stringify({ title: 'myco-test', permissions: rules })).stdout).data.id;
+    t.after(() => oc('session', 'delete', id));
+    const decide = (command) => JSON.parse(oc('api', 'POST', `/api/session/${id}/permission`, '-d', JSON.stringify({ action: 'shell', resources: [command] })).stdout).data.effect;
+    assert.equal(decide('gh pr merge 5'), 'deny');
+    assert.equal(decide('gh pr merge 5 --squash'), 'deny');
+    assert.equal(decide('gh --repo o/r pr merge 5'), 'deny');
+    assert.equal(decide('gh pr view 5'), 'allow');
+    assert.equal(decide('echo gh pr merge'), 'allow', 'a command that merely mentions it is not a merge');
+    // What the backstop does not cover, which the plugin's guard does: the guard is the real check.
+    assert.equal(decide('bash -c "gh pr merge 1"'), 'allow');
+    assert.equal(decide('git push origin main'), 'allow');
+  });
+
   test('no Claude Code key reaches the provider request', (t) => {
     const { oc } = project(t);
     const agents = JSON.parse(oc('debug', 'agents').stdout).filter((a) => a.id.includes('/'));
