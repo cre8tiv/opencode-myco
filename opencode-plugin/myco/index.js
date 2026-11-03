@@ -2,6 +2,7 @@
 // next to the team assets at <config>/myco/, so the root is two directories up.
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { registerGuards } from './guards.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'myco');
 
@@ -14,5 +15,6 @@ export default {
     await ctx.shell.hook('create.before', (event) => {
       event.env = { ...event.env, MYCO_ROOT: ROOT };
     });
+    await registerGuards(ctx, ROOT);
   },
 };
