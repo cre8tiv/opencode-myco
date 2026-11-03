@@ -9,7 +9,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { sandbox } from './helpers.mjs';
 import { install } from '../scripts/install.mjs';
-import { registerGuards, isTeamAgent } from '../opencode-plugin/myco/guards.js';
+import { registerGuards, isTeamAgent, profileDirectory } from '../opencode-plugin/myco/guards.js';
+import { parse } from 'node:path';
 
 /** A plugin context that keeps the hooks it is given. */
 function fakeCtx(directory) {
@@ -144,6 +145,46 @@ describe('the merge gate', () => {
     const { ask } = await guarded(t, { profile: 'trunk_branch: develop' });
     assert.match(ask({ agent: LEAD, tool: 'shell', input: { command: 'git push origin develop' } }) ?? '', /merge_policy/);
     assert.equal(ask({ agent: LEAD, tool: 'shell', input: { command: 'git push origin main' } }), null);
+  });
+});
+
+describe('where the project profile is looked for', () => {
+  test('it is the directory the plugin instance runs in', () => {
+    assert.equal(profileDirectory({ location: { directory: '/work/proj' } }), '/work/proj');
+  });
+
+  test('with no directory from the host it looks nowhere, not wherever the server happens to run', () => {
+    for (const ctx of [{}, { location: {} }, { location: { directory: '' } }, { location: { directory: 42 } }, undefined]) {
+      assert.equal(profileDirectory(ctx), parse(process.cwd()).root, JSON.stringify(ctx));
+    }
+  });
+
+  test('a missing directory is gated even when the server runs inside a project that allows merging', async (t) => {
+    // The server's own directory is some project with an autonomous profile; without a directory
+    // from the host the gate must not read it.
+    const sb = sandbox(t);
+    install({ target: join(sb.root, 'oc') });
+    const elsewhere = join(sb.root, 'elsewhere');
+    mkdirSync(join(elsewhere, '.claude', 'team'), { recursive: true });
+    writeFileSync(join(elsewhere, '.claude', 'team', 'project.md'), '---\nmerge_policy: autonomous\n---\n');
+    const { ctx, hooks } = fakeCtx(undefined);
+    delete ctx.location;
+    await registerGuards(ctx, join(sb.root, 'oc', 'myco'));
+    const before = process.cwd();
+    process.chdir(elsewhere);
+    try {
+      assert.throws(() => hooks['execute.before']({ agent: LEAD, tool: 'shell', input: { command: 'git push origin main' } }), /merge_policy is "human-approval"/);
+    } finally {
+      process.chdir(before);
+    }
+  });
+
+  test('the shell call\'s own workdir does not choose the policy: the agent controls it', async (t) => {
+    const { ask, project } = await guarded(t);
+    const other = join(project, '..', 'other');
+    mkdirSync(join(other, '.claude', 'team'), { recursive: true });
+    writeFileSync(join(other, '.claude', 'team', 'project.md'), '---\nmerge_policy: autonomous\n---\n');
+    assert.match(ask({ agent: LEAD, tool: 'shell', input: { command: 'git push origin main', workdir: other } }) ?? '', /merge_policy is "human-approval"/);
   });
 });
 

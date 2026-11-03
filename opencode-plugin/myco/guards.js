@@ -7,11 +7,26 @@
 // team that isn't installed simply has no guard. Nothing here may stop legitimate work
 // because the guard itself broke: failing to load a core, or any error while judging a
 // call, lets the call through.
-import { join } from 'node:path';
+import { join, parse } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 /** A team agent is installed as team/role. Every OpenCode session has an agent (a human's is "build"), so plain names are not the teams'. */
 export const isTeamAgent = (name) => typeof name === 'string' && name.includes('/');
+
+/**
+ * Where to look for the project profile (merge_policy, trunk_branch). OpenCode creates one plugin
+ * instance per location, and a session located in a worktree gets its own, so the instance's
+ * location is the directory of the sessions whose calls it sees (checked against OpenCode in
+ * test/opencode.test.mjs). It is deliberately not taken from the tool call: a shell command's
+ * workdir is the agent's to choose, and a policy read from wherever it points could be another
+ * project's. If the host gives no directory, look nowhere, which resolves to the gated default,
+ * rather than wherever the server process happens to be running.
+ * @param {any} ctx @returns {string}
+ */
+export function profileDirectory(ctx) {
+  const dir = ctx?.location?.directory;
+  return typeof dir === 'string' && dir ? dir : parse(process.cwd()).root;
+}
 
 /** @param {string} root the install root @param {string} team @param {string} file @returns {Promise<any | null>} */
 async function loadCore(root, team, file) {
@@ -38,7 +53,7 @@ export async function registerGuards(ctx, root) {
       const call = { agent: event.agent, tool: event.tool, input: event.input };
       const offending = coach?.coachViolation(call);
       if (offending) message = coach.coachMessage(offending);
-      else if (isTeamAgent(event.agent)) message = merge?.mergeVerdict({ ...call, cwd: ctx.location?.directory }) ?? null;
+      else if (isTeamAgent(event.agent)) message = merge?.mergeVerdict({ ...call, cwd: profileDirectory(ctx) }) ?? null;
     } catch {
       // A broken guard must never block legitimate work.
     }
