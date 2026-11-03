@@ -1,0 +1,76 @@
+// Checks the install against a real OpenCode: that it loads every agent as intended and
+// that the plugin loads. The unit tests cover what the installer writes; only OpenCode
+// can say how it reads it, and it is the one that forwards unknown frontmatter keys to
+// the model provider.
+//
+// Opt in with MYCO_TEST_OPENCODE=1 (for example `MYCO_TEST_OPENCODE=1 npm test`). It needs the `opencode`
+// binary and runs it with a throwaway HOME, so it neither reads nor changes your own
+// OpenCode configuration, sessions or credentials.
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdirSync, writeFileSync, realpathSync } from 'node:fs';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { ROOT, sandbox } from './helpers.mjs';
+import { install } from '../scripts/install.mjs';
+
+const enabled = process.env.MYCO_TEST_OPENCODE === '1' && spawnSync('opencode', ['--version']).status === 0;
+
+/** A git project with the teams installed into it, and the environment to run OpenCode in. */
+function project(t, models) {
+  const sb = sandbox(t);
+  const dir = join(sb.root, 'proj');
+  mkdirSync(dir, { recursive: true });
+  const run = (cmd, args, opts = {}) => spawnSync(cmd, args, { cwd: dir, encoding: 'utf8', timeout: 90000, ...opts });
+  run('git', ['init', '-q', '-b', 'main']);
+  writeFileSync(join(dir, 'README.md'), 'x');
+  run('git', ['-c', 'user.email=t@e', '-c', 'user.name=t', 'add', '-A']);
+  run('git', ['-c', 'user.email=t@e', '-c', 'user.name=t', 'commit', '-q', '-m', 'init']);
+  install({ target: join(dir, '.opencode'), models });
+  const env = { ...process.env, HOME: sb.home, USERPROFILE: sb.home, XDG_CONFIG_HOME: join(sb.home, '.config'), XDG_DATA_HOME: join(sb.home, '.local', 'share') };
+  return { dir: realpathSync(dir), oc: (...args) => run('opencode', [...args, '--standalone'], { env }) };
+}
+
+describe('installed into OpenCode', { skip: !enabled && 'set MYCO_TEST_OPENCODE=1 and have opencode on PATH' }, () => {
+  test('every team agent loads under its team/role name, with the intended mode and permissions', (t) => {
+    const { oc } = project(t, { tiers: { reasoning: 'test/model#medium' } });
+    const r = oc('debug', 'agents');
+    assert.equal(r.status, 0, r.stderr);
+    const agents = new Map(JSON.parse(r.stdout).map((a) => [a.id, a]));
+    const team = [...agents.keys()].filter((id) => id.includes('/'));
+    assert.equal(team.length, 11, team.join(', '));
+
+    assert.equal(agents.get('engineering-team/tech-lead').mode, 'primary');
+    assert.equal(agents.get('engineering-team/ic-generalist').mode, 'subagent');
+
+    const rules = (id, action) => agents.get(id).permissions.filter((p) => p.action === action).map((p) => `${p.resource}=${p.effect}`);
+    assert.deepEqual(rules('engineering-team/code-reviewer', 'edit'), ['*=deny']);
+    // The last matching rule wins, so the deny comes first and both path forms allow after it.
+    assert.deepEqual(rules('team-ops/agent-coach', 'edit'), ['*=deny', '.claude/ops/reports/**=allow', '*/.claude/ops/reports/**=allow']);
+
+    assert.deepEqual(agents.get('design-team/architect').model, { id: 'model', providerID: 'test', variant: 'medium' });
+  });
+
+  test('no Claude Code key reaches the provider request', (t) => {
+    const { oc } = project(t);
+    const agents = JSON.parse(oc('debug', 'agents').stdout).filter((a) => a.id.includes('/'));
+    assert.equal(agents.length, 11);
+    for (const a of agents) assert.deepEqual(a.request.body, {}, `${a.id} would send ${JSON.stringify(a.request.body)}`);
+  });
+
+  test('the plugin loads and gives commands MYCO_ROOT', (t) => {
+    const { dir, oc } = project(t);
+    const created = JSON.parse(oc('api', 'POST', '/api/session', '-d', '{"title":"myco-test"}').stdout);
+    const id = created.data.id;
+    t.after(() => oc('session', 'delete', id));
+    const sh = oc('api', 'POST', `/api/session/${id}/shell`, '-d', JSON.stringify({ command: 'echo ROOT=$MYCO_ROOT' }));
+    assert.equal(sh.status, 0, sh.stderr);
+    // The shell runs in the background; wait for it to exit.
+    let out;
+    for (let i = 0; i < 20 && out === undefined; i++) {
+      const shell = JSON.parse(oc('api', 'GET', `/api/session/${id}/message`).stdout).data.find((m) => m.type === 'shell');
+      if (shell?.status === 'exited') out = shell.output.output;
+    }
+    assert.equal(out?.trim(), `ROOT=${join(dir, '.opencode', 'myco')}`);
+  });
+});

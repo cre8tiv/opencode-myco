@@ -25,7 +25,7 @@ function compareVersions(a, b) {
   return 0;
 }
 
-/** @param {string} text @returns {string | null} the "version" of a plugin.json, or null when it can't be read */
+/** @param {string} text @returns {string | null} the "version" of a meta.json, or null when it can't be read */
 function versionOf(text) {
   try {
     const v = JSON.parse(text).version;
@@ -58,7 +58,7 @@ for (const file of changed) {
 
 const problems = [];
 for (const [plugin, files] of byPlugin) {
-  const manifest = `plugins/${plugin}/.claude-plugin/plugin.json`;
+  const manifest = `plugins/${plugin}/meta.json`;
   let before;
   let after;
   try {

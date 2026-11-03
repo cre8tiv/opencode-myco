@@ -1,0 +1,20 @@
+{
+  "_comment": "How each team agent is installed into OpenCode. mode: primary agents are chosen as the session agent and are not delegated to; subagent agents are. tier: which model tier the agent takes from the user's model mapping. permission: OpenCode permission rules written into the agent; they replace Claude Code's disallowedTools. The agent-coach rules list a relative and an absolute form because patterns match the path as the tool was given it.",
+  "agents": {
+    "design-team/product-lead": { "mode": "primary", "tier": "lead" },
+    "design-team/architect": { "mode": "subagent", "tier": "reasoning" },
+    "design-team/security-reviewer": { "mode": "subagent", "tier": "reasoning" },
+    "design-team/tech-designer": { "mode": "subagent", "tier": "reasoning" },
+    "design-team/ux-designer": { "mode": "subagent", "tier": "worker" },
+    "engineering-team/tech-lead": { "mode": "primary", "tier": "lead" },
+    "engineering-team/ic-generalist": { "mode": "subagent", "tier": "worker" },
+    "engineering-team/ic-specialist-backend": { "mode": "subagent", "tier": "worker" },
+    "engineering-team/code-reviewer": { "mode": "subagent", "tier": "reasoning", "permission": { "edit": "deny" } },
+    "engineering-team/qa-specialist": { "mode": "subagent", "tier": "reasoning" },
+    "team-ops/agent-coach": {
+      "mode": "primary",
+      "tier": "reasoning",
+      "permission": { "edit": { "*": "deny", ".claude/ops/reports/**": "allow", "*/.claude/ops/reports/**": "allow" } }
+    }
+  }
+}

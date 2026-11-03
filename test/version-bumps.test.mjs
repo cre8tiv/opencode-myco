@@ -25,7 +25,7 @@ function repo(t) {
   mkdirSync(dir);
   git('init', '-q', '-b', 'main');
   for (const [name, version] of [['alpha', '1.2.3'], ['beta', '0.4.9']]) {
-    write(`plugins/${name}/.claude-plugin/plugin.json`, JSON.stringify({ name, version }, null, 2));
+    write(`plugins/${name}/meta.json`, JSON.stringify({ name, version }, null, 2));
     write(`plugins/${name}/README.md`, '# readme');
     write(`plugins/${name}/agents/lead.md`, 'v1');
   }
@@ -36,7 +36,7 @@ function repo(t) {
     git('add', '-A');
     git('commit', '-q', '-m', msg);
   };
-  const bump = (name, version) => write(`plugins/${name}/.claude-plugin/plugin.json`, JSON.stringify({ name, version }, null, 2));
+  const bump = (name, version) => write(`plugins/${name}/meta.json`, JSON.stringify({ name, version }, null, 2));
   const check = (args = ['--base', 'main']) => runNode(CHECK, { args, cwd: dir, env: { ...sb.env, ...GIT_ENV } });
   return { write, commit, bump, check, git };
 }
@@ -58,7 +58,7 @@ describe('check-version-bumps', () => {
     const out = await r.check();
     assert.equal(out.status, 1);
     assert.match(out.stderr, /alpha: changed \(agents\/lead\.md\) but its version is 1\.2\.3, unchanged from 1\.2\.3/);
-    assert.match(out.stderr, /plugins\/alpha\/\.claude-plugin\/plugin\.json/);
+    assert.match(out.stderr, /plugins\/alpha\/meta\.json/);
   });
 
   test('passes once the version goes up', async (t) => {
@@ -120,7 +120,7 @@ describe('check-version-bumps', () => {
 
   test('a brand-new plugin has nothing to compare with', async (t) => {
     const r = repo(t);
-    r.write('plugins/gamma/.claude-plugin/plugin.json', JSON.stringify({ name: 'gamma', version: '0.1.0' }));
+    r.write('plugins/gamma/meta.json', JSON.stringify({ name: 'gamma', version: '0.1.0' }));
     r.write('plugins/gamma/agents/new.md', 'x');
     r.commit();
     assert.equal((await r.check()).status, 0);

@@ -38,7 +38,7 @@ function caseDirs(dir) {
 }
 
 const pluginDirs = readdirSync(join(ROOT, 'plugins')).map((n) => join(ROOT, 'plugins', n));
-const manifestOf = (dir) => JSON.parse(read(join(dir, '.claude-plugin', 'plugin.json')));
+const manifestOf = (dir) => JSON.parse(read(join(dir, 'meta.json')));
 const skillsOf = (dir) => (existsSync(join(dir, 'skills')) ? readdirSync(join(dir, 'skills')) : []);
 
 /** Everything about one case that the checks below need. */
@@ -69,7 +69,7 @@ describe('every case', () => {
   for (const c of cases) {
     test(`${c.name}: loads real plugins, and every plugin they depend on`, () => {
       assert.ok(c.plugins.length > 0, 'list the plugins to load in `plugins:`; with none, nothing under test is loaded');
-      for (const p of c.plugins) assert.ok(existsSync(join(p, '.claude-plugin', 'plugin.json')), `${relative(ROOT, p)} is not a plugin`);
+      for (const p of c.plugins) assert.ok(existsSync(join(p, 'meta.json')), `${relative(ROOT, p)} is not a plugin`);
       const loaded = new Set(c.plugins.map((p) => manifestOf(p).name));
       for (const p of c.plugins) {
         for (const dep of manifestOf(p).dependencies || []) {

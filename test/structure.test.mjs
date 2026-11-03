@@ -39,25 +39,27 @@ function frontmatter(text) {
 }
 
 const plugins = pluginNames();
-const manifest = (name) => readJson(join(PLUGINS_DIR, name, '.claude-plugin', 'plugin.json'));
+const manifest = (name) => readJson(join(PLUGINS_DIR, name, 'meta.json'));
 const agentsOf = (name) => walk(join(PLUGINS_DIR, name, 'agents'), (f) => f.endsWith('.md'));
 const skillsOf = (name) => walk(join(PLUGINS_DIR, name, 'skills'), (f) => f.endsWith('SKILL.md'));
 const markdownOf = (name) => walk(join(PLUGINS_DIR, name), (f) => f.endsWith('.md'));
 
 describe('manifests', () => {
-  test('the marketplace lists exactly the plugins in plugins/, each at a real path', () => {
-    const market = readJson(join(ROOT, '.claude-plugin', 'marketplace.json'));
-    assert.deepEqual(market.plugins.map((p) => p.name).sort(), [...plugins].sort());
-    for (const p of market.plugins) {
-      const dir = resolve(ROOT, p.source);
-      assert.ok(existsSync(join(dir, '.claude-plugin', 'plugin.json')), `${p.name}: ${p.source}`);
-      assert.equal(manifest(p.name).name, p.name, `${p.name}'s manifest names itself differently`);
-      assert.ok(p.description && p.description.length > 20, `${p.name} needs a description`);
+  test('every plugin directory has a meta.json that names it', () => {
+    assert.deepEqual([...plugins].sort(), ['design-team', 'engineering-team', 'team-ops']);
+    for (const name of plugins) {
+      assert.ok(existsSync(join(PLUGINS_DIR, name, 'meta.json')), `${name} has no meta.json`);
+      assert.equal(manifest(name).name, name, `${name}'s meta.json names itself differently`);
     }
   });
 
+  test('no Claude Code plugin or marketplace manifest is left behind', () => {
+    assert.equal(existsSync(join(ROOT, '.claude-plugin')), false);
+    for (const name of plugins) assert.equal(existsSync(join(PLUGINS_DIR, name, '.claude-plugin')), false, name);
+  });
+
   for (const name of plugins) {
-    test(`${name}: a valid manifest, with a version and only dependencies that exist`, () => {
+    test(`${name}: a valid meta.json, with a version and only dependencies that exist`, () => {
       const m = manifest(name);
       assert.match(m.version, /^\d+\.\d+\.\d+$/, 'version');
       assert.ok(m.description);
@@ -66,7 +68,7 @@ describe('manifests', () => {
     });
   }
 
-  test('both teams depend on team-ops, which is what installs the hooks and cost tracking', () => {
+  test('both teams depend on team-ops, which provides the capture, usage and cost tracking', () => {
     for (const team of ['design-team', 'engineering-team']) assert.ok(manifest(team).dependencies.includes('team-ops'), team);
   });
 });
