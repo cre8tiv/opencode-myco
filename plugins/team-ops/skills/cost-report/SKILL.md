@@ -8,7 +8,7 @@ description: Report what the agent teams' work cost — per design package and r
 team-ops records the token usage of every team lead session and team agent in this project's stream (`~/.claude/ops/<stream>/usage.jsonl`), tagged with the unit of work it was for. This skill reports on it.
 
 ```sh
-node "${CLAUDE_PLUGIN_ROOT}/scripts/cost.mjs" [--work <tag or prefix>] [--by work|agent|model|day|session] [--since <YYYY-MM-DD>] [--json] [--export]
+node "$MYCO_ROOT/team-ops/scripts/cost.mjs" [--work <tag or prefix>] [--by work|agent|model|day|session] [--since <YYYY-MM-DD>] [--json] [--export]
 ```
 
 - `--work` matches by prefix: `order-exceptions` covers every round and phase of that package; `order-exceptions/round-2` just that round; `CLOUD-123` that ticket.
@@ -24,7 +24,7 @@ Run it from inside the project, so it finds the right stream. Show the human the
 
 - **Estimates at API list prices**, from the token counts in Claude Code's transcripts; a Team or Max subscription bills differently. They tend to run a little low against Claude Code's own session figures, mostly on output tokens.
 - **Lead coordination is included:** a lead's own usage is reported under the work it tagged, as "(lead)".
-- **"(untagged)"** is work done before leads named their work with `team-ops:start-work`, or by team agents started outside a lead session.
+- **"(untagged)"** is work done before leads named their work with `start-work`, or by team agents started outside a lead session.
 - **Only what was recorded:** usage is captured when a lead session ends and when each team agent finishes, and the report re-reads transcripts that changed since. Transcripts Claude Code has already cleaned up can't be recovered.
 
 This is one person's view of one project. For a team's, see the telemetry guide in the team-ops plugin (`telemetry/README.md`).

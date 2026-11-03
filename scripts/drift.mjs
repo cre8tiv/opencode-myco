@@ -14,9 +14,9 @@
 // (default: this repository) and --remote <name> (default: upstream).
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve, relative, sep } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 /** Where the shared files live, relative to the repository root. */
 const SHARED = [
@@ -146,7 +146,16 @@ function main(argv) {
   }
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+/** Whether this file is the one being run. Both sides are resolved: a symlinked path (a macOS temp directory, a dotfiles-managed config) differs from the real one, and the script would silently do nothing. */
+const isMain = () => {
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+};
+
+if (isMain()) {
   try {
     main(process.argv.slice(2));
   } catch (e) {

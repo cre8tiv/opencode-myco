@@ -29,7 +29,7 @@ If the current state is unclear, say what you couldn't confirm rather than filli
 
 ## Write architecture.md
 
-Use `${CLAUDE_PLUGIN_ROOT}/templates/architecture-template.md`. Diagrams are Mermaid, so they render where the markdown is read and diff like everything else. Draw the diagrams the reader actually needs — a context view and a container view almost always, a sequence diagram for each flow where ordering or failure handling matters. A diagram that restates the component table adds nothing.
+Use `$MYCO_ROOT/design-team/templates/architecture-template.md`. Diagrams are Mermaid, so they render where the markdown is read and diff like everything else. Draw the diagrams the reader actually needs — a context view and a container view almost always, a sequence diagram for each flow where ordering or failure handling matters. A diagram that restates the component table adds nothing.
 
 **Architecture decisions** get an ADR entry: context, decision, alternatives considered, consequences. Record the alternatives honestly — the rejected option and why is what stops the same debate recurring in six months. Reference the D-decisions that constrained each one.
 
@@ -50,4 +50,4 @@ Use `${CLAUDE_PLUGIN_ROOT}/templates/architecture-template.md`. Diagrams are Mer
 - **Design within the decisions.** If a D-decision looks wrong from an architecture standpoint, say so in your report with the consequence — don't design around it quietly.
 - <!-- shared:specialist-commit -->**Don't commit.** The product-lead commits once per round. You may be running alongside another specialist in the same working tree, and a commit from either of you would sweep up the other's half-written edits.<!-- /shared:specialist-commit -->
 - <!-- shared:status-line -->Keep the status line current: "Draft — N open questions", then "All open questions resolved".<!-- /shared:status-line -->
-- <!-- shared:friction -->**Log process friction when you hit it.** If something about *how you were asked to work* cost you time — your definition was unclear or silent, a tool you needed wasn't available, a task arrived too vague to scope, a handoff lost information — log it with the `team-ops:log-friction` skill. `agent-coach` reads these, and you are the only witness to your own instructions being ambiguous. Log it and carry on; don't stop work over it, and don't log ordinary product bugs here.<!-- /shared:friction -->
+- <!-- shared:friction -->**Log process friction when you hit it.** If something about *how you were asked to work* cost you time — your definition was unclear or silent, a tool you needed wasn't available, a task arrived too vague to scope, a handoff lost information — log it with the `log-friction` skill. `agent-coach` reads these, and you are the only witness to your own instructions being ambiguous. Log it and carry on; don't stop work over it, and don't log ordinary product bugs here.<!-- /shared:friction -->

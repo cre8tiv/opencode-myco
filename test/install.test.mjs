@@ -5,10 +5,11 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT, sandbox } from './helpers.mjs';
-import { install, transformAgent, parseModelRef, checkModels } from '../scripts/install.mjs';
+import { install, transformAgent } from '../scripts/install.mjs';
+import { checkModels } from '../plugins/team-ops/scripts/models.mjs';
 
 const INSTALL = join(ROOT, 'scripts', 'install.mjs');
 const ALLOWED_KEYS = new Set(['description', 'mode', 'model', 'variant', 'permission']);
@@ -60,18 +61,10 @@ describe('transformAgent', () => {
   });
 
   test('refuses what it cannot translate faithfully', () => {
-    assert.throws(() => transformAgent({ id: 'design-team/unknown', text: SOURCE }), /not in scripts\/opencode-agents/);
+    assert.throws(() => transformAgent({ id: 'design-team/unknown', text: SOURCE }), /not in plugins\/team-ops\/scripts\/opencode-agents/);
     assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\nname: a\n---\nbody' }), /no description/);
     assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\ndescription: a\ntools:\n  - Read\n---\n' }), /unsupported frontmatter/);
     assert.throws(() => transformAgent({ id: 'design-team/architect', text: 'no frontmatter' }), /no frontmatter/);
-  });
-
-  test('model references and tiers are validated', () => {
-    assert.deepEqual(parseModelRef('a/b-c.d#high'), { model: 'a/b-c.d', variant: 'high' });
-    assert.deepEqual(parseModelRef('a/b/c'), { model: 'a/b/c' });
-    for (const bad of ['nomodel', 'a/', '/b', 'a/b#', 'a b/c']) assert.throws(() => parseModelRef(bad), /not provider\/model/, bad);
-    assert.throws(() => checkModels({ tiers: { nope: 'a/b' } }), /unknown tier/);
-    assert.throws(() => checkModels({ agents: { 'x/y': 'a/b' } }), /unknown agent/);
   });
 });
 
@@ -87,7 +80,7 @@ describe('install', () => {
     const target = join(sb.root, 'out');
     const result = install({ target });
     assert.equal(result.agents.length, 11);
-    assert.equal(result.skills.length, 7);
+    assert.equal(result.skills.length, 8);
     for (const id of result.agents) assert.ok(existsSync(join(target, 'agents', `${id}.md`)), id);
     for (const s of result.skills) assert.ok(existsSync(join(target, 'skills', s, 'SKILL.md')), s);
     assert.ok(existsSync(join(target, 'myco', 'team-ops', 'scripts', 'friction.mjs')));
@@ -106,6 +99,37 @@ describe('install', () => {
         assert.match(text, /^description: ".{30,}"$/m, `${team}/${f}`);
       }
     }
+  });
+
+  test('installed agents and skills carry real paths, and every path they name exists', (t) => {
+    // OpenCode doesn't substitute variables in agent or skill text, and a `read` call can't expand one.
+    const sb = sandbox(t);
+    const target = join(sb.root, 'out');
+    install({ target });
+    const root = join(target, 'myco').split(sep).join('/');
+    const files = [];
+    const collect = (dir) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        if (e.isDirectory()) collect(join(dir, e.name));
+        else if (e.name.endsWith('.md')) files.push(join(dir, e.name));
+      }
+    };
+    collect(join(target, 'agents'));
+    collect(join(target, 'skills'));
+    let named = 0;
+    for (const f of files) {
+      const text = read(f);
+      assert.doesNotMatch(text, /\$MYCO_ROOT|CLAUDE_PLUGIN_ROOT/, f);
+      // Every place the text names a path under the install root: take the path characters after it.
+      for (let at = text.indexOf(`${root}/`); at >= 0; at = text.indexOf(`${root}/`, at + 1)) {
+        // Up to whitespace or a closing quote or bracket (a Windows temp path can hold "~", as in RUNNER~1),
+        // less any sentence punctuation that follows the path.
+        const path = text.slice(at).match(/^[^\s"'`)\]]+/)[0].replace(/[.,;:]+$/, '');
+        named++;
+        assert.ok(existsSync(path), `${f} names ${path}, which was not installed`);
+      }
+    }
+    assert.ok(named >= 20, `expected the agents and skills to name installed files, found ${named}`);
   });
 
   test('a reinstall replaces what it owns and leaves everything else alone', (t) => {
@@ -147,8 +171,10 @@ describe('install CLI', () => {
     writeFileSync(models, JSON.stringify({ tiers: { reasoning: 'p/big#medium' } }));
     const r = spawnSync(process.execPath, [INSTALL, '--target', target, '--models', models], { encoding: 'utf8' });
     assert.equal(r.status, 0, r.stderr);
-    assert.match(r.stdout, /Installed 11 agents, 7 skills/);
+    assert.match(r.stdout, /Installed 11 agents, 8 skills/);
     assert.match(read(join(target, 'agents', 'design-team', 'architect.md')), /^variant: "medium"$/m);
+    // The mapping becomes the install's own, so a later plain reinstall and models.mjs agree with it.
+    assert.deepEqual(JSON.parse(read(join(target, 'myco', 'models.json'))), { tiers: { reasoning: 'p/big#medium' } });
   });
 
   test('picks up <target>/myco/models.json when no --models is given', (t) => {

@@ -24,7 +24,7 @@ Check how the existing system already handles authentication, authorization, sec
 
 ## Write security-review.md
 
-Use `${CLAUDE_PLUGIN_ROOT}/templates/security-review-template.md`.
+Use `$MYCO_ROOT/design-team/templates/security-review-template.md`.
 
 - **Classify the data** the design touches, and draw the trust boundaries as a Mermaid data-flow diagram. Every threat sits on a flow that crosses a boundary; if it doesn't, question whether it's a threat.
 - **Threat-model the actual components and flows** in the architecture, one row per credible threat (`T-n`), categorized with STRIDE. Credible means someone would plausibly try it and it would matter if they succeeded. A long table of generic threats buries the three that matter.
@@ -46,4 +46,4 @@ Use `${CLAUDE_PLUGIN_ROOT}/templates/security-review-template.md`.
 - **You may be re-engaged** after the tech design is written, to confirm the controls are designed in. When you are, check every `SEC-n` against the tech design's traceability table and report gaps by ID.
 - <!-- shared:specialist-commit -->**Don't commit.** The product-lead commits once per round. You may be running alongside another specialist in the same working tree, and a commit from either of you would sweep up the other's half-written edits.<!-- /shared:specialist-commit -->
 - <!-- shared:status-line -->Keep the status line current: "Draft — N open questions", then "All open questions resolved".<!-- /shared:status-line -->
-- <!-- shared:friction -->**Log process friction when you hit it.** If something about *how you were asked to work* cost you time — your definition was unclear or silent, a tool you needed wasn't available, a task arrived too vague to scope, a handoff lost information — log it with the `team-ops:log-friction` skill. `agent-coach` reads these, and you are the only witness to your own instructions being ambiguous. Log it and carry on; don't stop work over it, and don't log ordinary product bugs here.<!-- /shared:friction -->
+- <!-- shared:friction -->**Log process friction when you hit it.** If something about *how you were asked to work* cost you time — your definition was unclear or silent, a tool you needed wasn't available, a task arrived too vague to scope, a handoff lost information — log it with the `log-friction` skill. `agent-coach` reads these, and you are the only witness to your own instructions being ambiguous. Log it and carry on; don't stop work over it, and don't log ordinary product bugs here.<!-- /shared:friction -->

@@ -32,7 +32,7 @@ If no tracker MCP is available, don't fake it. Record `ticket_system: none` and 
 
 ## 3. Ask only the gaps
 
-Use `AskUserQuestion` for what you couldn't infer, batching related questions. Realistic gaps:
+Use `question` for what you couldn't infer, batching related questions. Realistic gaps:
 
 - **How QA should exercise this software**, if the project type is ambiguous or mixed. This is the highest-value question in the whole interview: it determines whether QA drives a browser, probes an API, runs a CLI, writes a consumer harness, or runs migrations against a realistic dataset. Get it wrong and every QA run is theater.
 - **Ephemeral/preview environments** — do they exist, how is one created, how is one reset? If the project has a skill or script for this, name it.
@@ -63,11 +63,11 @@ When the user corrects a detection, take the correction and don't re-litigate it
 
 ### Knowledge sources
 
-Run the `team-ops:init-knowledge` skill now. It finds every documentation and knowledge source this project can reach — including MCP servers named after the product or an internal system, and connectors that exist but aren't authorized — and every codebase the work builds against or imitates beyond this repository, asks what each is for, and writes the shared `.claude/team/knowledge.md` that every team's agents read. If the file already exists because the other team's setup wrote it, the skill confirms and fills gaps rather than asking again. When it finishes, carry on here.
+Run the `init-knowledge` skill now. It finds every documentation and knowledge source this project can reach — including MCP servers named after the product or an internal system, and connectors that exist but aren't authorized — and every codebase the work builds against or imitates beyond this repository, asks what each is for, and writes the shared `.claude/team/knowledge.md` that every team's agents read. If the file already exists because the other team's setup wrote it, the skill confirms and fills gaps rather than asking again. When it finishes, carry on here.
 
 ## 4. Write the profile
 
-Copy `${CLAUDE_PLUGIN_ROOT}/templates/team/project.md` to `.claude/team/project.md` and fill it in. Rules:
+Copy `$MYCO_ROOT/engineering-team/templates/team/project.md` to `.claude/team/project.md` and fill it in. Rules:
 
 - **Every placeholder gets replaced or removed.** A profile shipped with `<command>` still in it is worse than no profile — an agent will read it as literal.
 - **Commands must be the real, runnable ones.** Verify each by running it if it's safe and fast (`lint`, `typecheck`, `--version`); don't run a full suite or anything destructive just to check. Say in your summary which ones you actually verified and which you took on trust.
@@ -83,7 +83,7 @@ Copy `${CLAUDE_PLUGIN_ROOT}/templates/team/project.md` to `.claude/team/project.
 
 ```sh
 mkdir -p .claude/qa
-cp -r "${CLAUDE_PLUGIN_ROOT}/templates/qa/." .claude/qa/
+cp -r "$MYCO_ROOT/engineering-team/templates/qa/." .claude/qa/
 ```
 
 Don't overwrite an existing `.claude/qa/INDEX.md` or any accumulated plans or scripts — those are the project's own assets. (`agent-coach`'s reports directory is created by `team-ops` on first use; nothing to scaffold here.) On a refresh, add only what's missing.
@@ -124,15 +124,15 @@ For a project with no web surface, skip this entirely — don't make a SQL or CL
 ```sh
 # the merge gate matches the policy you just recorded
 #   human-approval -> exit 2   |   autonomous -> exit 0
-echo '{"agent_type":"engineering-team:tech-lead","tool_name":"Bash","cwd":"'"$PWD"'","tool_input":{"command":"gh pr merge 1"}}' | node "${CLAUDE_PLUGIN_ROOT}/scripts/merge-gate.mjs"; echo "exit=$?"
+echo '{"agent_type":"engineering-team:tech-lead","tool_name":"Bash","cwd":"'"$PWD"'","tool_input":{"command":"gh pr merge 1"}}' | node "$MYCO_ROOT/engineering-team/scripts/merge-gate.mjs"; echo "exit=$?"
 
 # ...and an IC keeping its branch current is never blocked (expect exit 0)
-echo '{"agent_type":"engineering-team:ic-generalist","tool_name":"Bash","cwd":"'"$PWD"'","tool_input":{"command":"git merge origin/main"}}' | node "${CLAUDE_PLUGIN_ROOT}/scripts/merge-gate.mjs"; echo "exit=$?"
+echo '{"agent_type":"engineering-team:ic-generalist","tool_name":"Bash","cwd":"'"$PWD"'","tool_input":{"command":"git merge origin/main"}}' | node "$MYCO_ROOT/engineering-team/scripts/merge-gate.mjs"; echo "exit=$?"
 ```
 
 Run the merge-gate check and **say the result out loud to the user** — it's the one place where a typo in the profile silently changes how much autonomy the team has.
 
-Then confirm telemetry resolves to the stream you just configured: invoke the `team-ops:log-friction` skill once with kind `tooling` and the note "init-team smoke test", and check the entry landed in `~/.claude/ops/<stream>/friction.jsonl`. If it landed in a directory named after the working directory instead, `stream:` in the profile isn't being read — check the frontmatter.
+Then confirm telemetry resolves to the stream you just configured: invoke the `log-friction` skill once with kind `tooling` and the note "init-team smoke test", and check the entry landed in `~/.claude/ops/<stream>/friction.jsonl`. If it landed in a directory named after the working directory instead, `stream:` in the profile isn't being read — check the frontmatter.
 
 Then tell the user, briefly:
 
@@ -147,10 +147,10 @@ Don't dump the generated file into the chat — say where it is and what's in it
 
 For the next step, name the actual work if the user mentioned any — a ticket key, or a design package that's ready for engineering. How you phrase it depends on where you're running — check before you write it:
 
-- **You are the tech lead** — this session was started as `engineering-team:tech-lead`, so your own instructions describe that role. Don't tell the user to start a session; they're in it. Ask whether to go ahead — *"Setup's done. Shall I pick up ABC-123 now?"* — and on a yes, continue in this conversation.
+- **You are the tech lead** — this session was started as `engineering-team/tech-lead`, so your own instructions describe that role. Don't tell the user to start a session; they're in it. Ask whether to go ahead — *"Setup's done. Shall I pick up ABC-123 now?"* — and on a yes, continue in this conversation.
 - **You're in any other session** — give the exact command and a first message they can paste:
 
   ```
-  claude --agent engineering-team:tech-lead
+  opencode        # select the engineering-team/tech-lead agent (Tab cycles agents)
   > Pick up ABC-123
   ```

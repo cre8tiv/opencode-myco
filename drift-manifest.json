@@ -8,7 +8,6 @@
     "plugins/design-team/scripts/render-review.mjs": "ec39a0895adee6f0fddc39e7c7df6a7c2390215f48d54602feeabbbf44006f71",
     "plugins/design-team/templates/architecture-template.md": "ab42266ea252b1f3ec1fdc342cc4c41f2b46992c7df9c00f5b80cedd767b6c74",
     "plugins/design-team/templates/design-profile.md": "742712aeb7993a810123e59a7cc70f6265c634bc23d5d785732d6cd4a33098f5",
-    "plugins/design-team/templates/package-index.md": "3fdbb13502ed3ec054f6bedc22cff2959ec10316dd3fc86f3127a5c643e46551",
     "plugins/design-team/templates/prd-template.md": "ca5941ec6d6cc295d4be9cb5476244e01786b1b88bb6251f56ad25222046a750",
     "plugins/design-team/templates/review-summary.md": "4f2fb5cd739f6cbadf8950d8cd9ec6a9f1bfada121e6411c0e0ba374fbdf7bd7",
     "plugins/design-team/templates/security-review-template.md": "4371620b0f33752011b36b269b6a7fd4e9306d8a0a0b89df27e1284a0d4c2b25",
@@ -35,8 +34,10 @@
     "plugins/team-ops/telemetry/stack/otel-collector.yaml": "3bb408a646f0cc697a3a5039311fcf83884fc041c4fa5ce148fe0bb1c083ef27",
     "plugins/team-ops/telemetry/stack/prometheus.yml": "bcce9c4e4e74cabad130b7ef4c8e89a98597b925e62d38d6b29e28af21edf275",
     "plugins/team-ops/templates/TRENDS.md": "c39bfa56efd7c76ecc887eb710d807487146c5ed1be2c900f17add6c8c27adda",
-    "plugins/team-ops/templates/knowledge.md": "251acf2a6cacbb95781bab24ba03a4e44ee9fe2d723e3089f01e01aaff64510a",
-    "plugins/team-ops/templates/report-template.md": "2e63097322bf7388ba498618726eab8bf50a7903d1ff042adb1a3f8f7b319edb"
+    "plugins/team-ops/templates/knowledge.md": "251acf2a6cacbb95781bab24ba03a4e44ee9fe2d723e3089f01e01aaff64510a"
   },
-  "diverged": {}
+  "diverged": {
+    "plugins/design-team/templates/package-index.md": "OpenCode: start-session command names the agent in OpenCode's form",
+    "plugins/team-ops/templates/report-template.md": "OpenCode: skill name is bare (cost-report), not team-ops:cost-report"
+  }
 }

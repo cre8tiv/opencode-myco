@@ -35,7 +35,7 @@ For each candidate, note its remote URL, a local clone if there is one (as a pat
 
 ## 2. Ask
 
-Use `AskUserQuestion`, batched, with what you detected as the recommended answers. For each source:
+Use `question`, batched, with what you detected as the recommended answers. For each source:
 
 - **What it answers.** One line, in terms of the questions an agent would bring to it: "what the product publicly supports", "how this service's internals work", "known issues customers hit". For a source you couldn't identify from its tools, ask outright.
 - **Who uses it.** Which roles should consult it. Product docs usually serve the product lead, architect and QA; internal engineering docs serve the tech designer, ICs and reviewers; security policy serves the security reviewer.
@@ -66,7 +66,7 @@ You can't authorize on their behalf. Re-check once they confirm. Whatever they d
 
 ## 3. Write
 
-Copy `${CLAUDE_PLUGIN_ROOT}/templates/knowledge.md` to `.claude/team/knowledge.md` and fill it in, or update the existing file.
+Copy `$MYCO_ROOT/team-ops/templates/knowledge.md` to `.claude/team/knowledge.md` and fill it in, or update the existing file.
 
 - **One row per source**, with exactly how to reach it: an MCP tool prefix, a URL, or a repo path.
 - **"Answers" is the column that matters.** An agent decides whether to consult a source by matching its question against this column. "Docs" tells it nothing; "what the product publicly supports: connectors, query features, limits" tells it when.
