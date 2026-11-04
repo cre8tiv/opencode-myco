@@ -46,6 +46,11 @@ describe('reading OpenCode messages', () => {
     assert.deepEqual(dispatchesOf(f.lead).map((d) => d.sessionID), ['ses_arch']);
   });
 
+  test('a delegate call names its agent\'s session the way a subagent call does', () => {
+    const lead = [msg(1, [tool('delegate', { agent: 'x/y', description: '[T-1] go' }, { sessionID: 'ses_iso' })])];
+    assert.deepEqual(dispatchesOf(lead).map((d) => d.sessionID), ['ses_iso']);
+  });
+
   test('usage lands on the work it belongs to, per agent and model', () => {
     const f = fixture();
     const recs = usageRecords({ lead: { id: 'ses_lead', info: f.info, messages: f.lead }, children: new Map([['ses_arch', { info: f.archInfo, messages: f.arch }]]) });
@@ -187,6 +192,18 @@ describe('cost.mjs over OpenCode', () => {
     const claude = await runNode(COST, { args: ['--source', 'claude'], cwd: sb.project, env });
     assert.match(claude.stdout, /team lead session ends/);
     assert.doesNotMatch(claude.stdout, /OpenCode sessions/);
+  });
+
+  test('an agent given its own worktree (no parent session) is counted once, under its lead', async (t) => {
+    const { report } = setup(t, (db) => {
+      // As delegate creates it: top-level, linked to its lead by metadata, named by the lead's delegate call.
+      db.sessions[1] = { ...db.sessions[1], parentID: undefined, metadata: { mycoParent: 'ses_lead' } };
+      db.contexts.ses_lead = db.contexts.ses_lead.map((m) => ({ ...m, content: m.content.map((c) => (c.name === 'subagent' ? { ...c, name: 'delegate' } : c)) }));
+      return db;
+    });
+    const r = await report(['--by', 'session']);
+    assert.deepEqual(r.json.groups.map((g) => g.key), ['ses_lead']);
+    near(group(r.json, 'ses_lead').usd, 38.02);
   });
 
   test('a model with no list price is shown as unpriced, not as free', async (t) => {

@@ -208,6 +208,30 @@ describe('dispatching agents', () => {
     assert.equal(stop.work, 'CLOUD-9');
   });
 
+  test('the delegate tool is recorded the same way, with the session it names', async (t) => {
+    const c = await capture(t);
+    const del = { ...START, tool: 'delegate' };
+    c.before(del);
+    c.after({ ...del, status: 'completed', result: { output: { sessionID: 'ses_iso', status: 'completed', output: 'built' } } });
+    const [start, stop] = await c.events(2);
+    assert.equal(start.event, 'SubagentStart');
+    assert.equal(start.work, 'CLOUD-9');
+    assert.equal(stop.event, 'SubagentStop');
+    assert.equal(stop.agent_id, 'ses_iso');
+    assert.equal(stop.report, 'built');
+  });
+
+  test('an agent delegate isolated has no parent session of its own, but its failures still name its lead\'s work', async (t) => {
+    const c = await capture(t);
+    await c.work.set('ses_lead', 'CLOUD-5');
+    await c.work.link('ses_iso', 'ses_lead', 'CLOUD-9');
+    c.after({ tool: 'shell', agent: IC, sessionID: 'ses_iso', input: { command: 'make' }, status: 'error', error: { message: 'boom' } });
+    const [rec] = await c.events();
+    assert.equal(rec.event, 'PostToolUseFailure');
+    assert.equal(rec.work, 'CLOUD-9');
+    assert.equal(rec.parent_work, 'CLOUD-5');
+  });
+
   test('without a [TAG] the dispatched agent is on its lead\'s work', async (t) => {
     const c = await capture(t);
     await c.work.set('ses_lead', 'CLOUD-5');

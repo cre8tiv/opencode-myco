@@ -48,14 +48,15 @@ export function workTagsOf(messages) {
   return tags.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
 }
 
-/** The sessions a lead dispatched agents into, from its subagent calls: the session, the task, and when. */
+/** The sessions a lead dispatched agents into, from its subagent and delegate calls: the session, the task, and when. */
 export function dispatchesOf(messages) {
   const out = [];
   for (const m of messages || []) {
     if (m?.type !== 'assistant') continue;
     for (const c of m.content || []) {
       // In a stored session the child is named in the tool part's metadata (the live hook result carries it as output.sessionID).
-      const id = c?.type === 'tool' && c.name === 'subagent' ? c.state?.metadata?.sessionID : null;
+      // Both dispatching tools say it there: OpenCode's subagent, and the plugin's delegate.
+      const id = c?.type === 'tool' && (c.name === 'subagent' || c.name === 'delegate') ? c.state?.metadata?.sessionID : null;
       if (id) out.push({ sessionID: id, description: c.state?.input?.description, at: timeOf(m) });
     }
   }
@@ -221,7 +222,8 @@ export function refreshFromOpenCode({ dir, cwd, exec = execOpencode, now = Date.
   let unreadableChildren = 0;
   for (const s of sessions.values()) {
     // A session that is not a team agent is read too: a team agent it dispatched is still the teams' cost.
-    if (s.parentID) continue;
+    // An agent delegate gave its own worktree has no parent session; its lead's delegate call names it, and counts it.
+    if (s.parentID || s.metadata?.mycoParent) continue;
     if (seen.has(s.id) && seen.get(s.id) >= (s.time?.updated ?? 0)) continue;
     try {
       const messages = listOf(get(exec, cwd, `/api/session/${s.id}/context`));

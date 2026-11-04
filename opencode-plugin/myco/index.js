@@ -3,6 +3,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { registerCapture } from './capture.js';
+import { registerDelegate } from './delegate.js';
 import { registerGuards } from './guards.js';
 import { registerTools } from './tools.js';
 import { createWorkTracker } from './work.js';
@@ -31,6 +32,12 @@ export default {
     if (guards.merge) features.push('merge-gate');
     const tools = await registerTools(ctx, ROOT, work);
     features.push('start_work');
+    try {
+      await registerDelegate(ctx, work);
+      features.push('delegate');
+    } catch {
+      // Without delegate the leads can still use subagent, and the guards above are already in place.
+    }
     if (tools.friction) features.push('log_friction');
     // The host calls what setup returns when the plugin is torn down.
     return () => capture.dispose();

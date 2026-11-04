@@ -8,7 +8,7 @@
 //   PermissionDenied    a team agent's call was refused: by a permission rule (execute.after with
 //                       Permission.BlockedError; OpenCode does not run its permission hook for a
 //                       configured deny) or by one of the guards (recordBlock)
-//   SubagentStart/Stop  a team agent was dispatched, and returned its report (the subagent tool)
+//   SubagentStart/Stop  a team agent was dispatched, and returned its report (the subagent tool, or delegate)
 //   PreCompact          a team agent's context is being compacted
 //   StopFailure         a team agent's run ended on an error, such as a provider timeout (session.execution.failed)
 //   SessionEnd          a team lead's run ended (session.execution.succeeded). OpenCode sessions do not end, each
@@ -43,6 +43,9 @@ const errorText = (err) => {
 };
 
 /** "[CLOUD-123] implement retry" names the work an agent's task belongs to. */
+/** The tools that dispatch an agent: OpenCode's own, and the plugin's, which can also give it a worktree. */
+const DISPATCH = new Set(['subagent', 'delegate']);
+
 const bracketTag = (description) => (String(description || '').match(/^\s*\[([^\]\s]+)\]/) || [])[1] || null;
 
 /**
@@ -61,8 +64,9 @@ export async function registerCapture(ctx, root, work = createWorkTracker(ctx)) 
   /** The work a session is on: what it named itself, else what it inherited when it was dispatched. */
   const workFor = (id) => work.peek(id) || sessions.get(id)?.work;
   /** The work of the lead that dispatched a session, when there is one. */
+  const parentOf = (id) => sessions.get(id)?.parentID || work.parentOf(id);
   const parentWorkFor = (id) => {
-    const parent = sessions.get(id)?.parentID;
+    const parent = parentOf(id);
     return parent ? workFor(parent) : undefined;
   };
 
@@ -76,7 +80,7 @@ export async function registerCapture(ctx, root, work = createWorkTracker(ctx)) 
 
   await ctx.tool.hook('execute.before', (e) => {
     try {
-      if (e.tool !== 'subagent' || !isTeamAgent(e.input?.agent)) return;
+      if (!DISPATCH.has(e.tool) || !isTeamAgent(e.input?.agent)) return;
       const parent = workFor(e.sessionID);
       emit({
         event: 'SubagentStart',
@@ -94,7 +98,7 @@ export async function registerCapture(ctx, root, work = createWorkTracker(ctx)) 
   await ctx.tool.hook('execute.after', (e) => {
     try {
       const parent = workFor(e.sessionID);
-      if (e.tool === 'subagent') {
+      if (DISPATCH.has(e.tool)) {
         const child = e.input?.agent;
         if (isTeamAgent(child)) {
           emit({
@@ -173,7 +177,7 @@ export async function registerCapture(ctx, root, work = createWorkTracker(ctx)) 
     if (!mine?.agent || !isTeamAgent(mine.agent)) return;
     if (ev.type === 'session.execution.failed') {
       emit({ event: 'StopFailure', agent: mine.agent, session: d.sessionID, work: workFor(d.sessionID), parentWork: parentWorkFor(d.sessionID), error: errorText(d.error) });
-    } else if (ev.type === 'session.execution.succeeded' && !mine.parentID) {
+    } else if (ev.type === 'session.execution.succeeded' && !parentOf(d.sessionID)) {
       emit({ event: 'SessionEnd', agent: mine.agent, session: d.sessionID, work: workFor(d.sessionID) });
     }
   };
