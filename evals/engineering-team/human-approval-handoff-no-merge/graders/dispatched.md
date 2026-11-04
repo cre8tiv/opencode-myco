@@ -1,5 +1,5 @@
 ---
 type: tool_used
-tool: Agent
+tool: subagent|delegate
 input_match: 'tech-lead'
 ---

@@ -43,7 +43,7 @@ This is a port in progress. Read this before relying on a part of it.
 
 - **Delegation and the gates have had live runs, on a toy task.** With every tier on `claude-haiku-5.5` through OpenRouter, a tech lead named its work with `start_work`, delegated a small change to an IC in its own worktree and branch, noticed the IC's choice contradicted its decision and continued the same IC session by `sessionID`, then ran the code reviewer and the QA specialist (isolated, pushing its report to the branch), and handed off. The event stream, work tags and cost report matched what happened (about four cents). A separate `agent-coach` run read the stream, the cost report and a session export, was refused by its write guard when it tried to write outside the reports directory, and wrote a report in the fixed format. Those runs found and fixed five bugs the stand-in tests could not. Not yet seen: several ICs at once, an IC that stops blocked with a question, abort on a live server, a real project, a stronger or weaker model, and the setup skills (`init-team`, `init-design`, `init-knowledge`, `init-models`), which ask questions a headless run cannot answer.
 - **Published review pages and Claude Design.** Review pages are claude.ai artifacts and Claude Design is a claude.ai tool; neither has an OpenCode equivalent. `publish-review` renders a package to a standalone HTML file instead, with no comment threads, and prototypes are HTML files.
-- **Evals** (`evals/`) run on the Claude Code eval harness only.
+- **Evals** (`evals/`) have a runner, `scripts/eval.mjs`, and all 17 cases are converted, but none has been run against a real model yet; the runner is tested against a stand-in `opencode` only.
 
 The telemetry guide (`plugins/team-ops/telemetry/README.md`) is rewritten for OpenCode. The example stack's Grafana dashboard is shared with upstream and still has per-person panels built on Claude Code's own metrics, which stay empty here.
 
@@ -399,6 +399,6 @@ node scripts/check-version-bumps.mjs              # the version check CI runs on
 
 The suite runs scripts as processes and the plugin through a stand-in for OpenCode's plugin context, against a throwaway home directory, so it never touches your `~/.claude` or `~/.config/opencode`. With `MYCO_TEST_OPENCODE=1` it also installs into a throwaway HOME and runs a real OpenCode against it, which checks that the agents load as intended, that nothing Claude-specific reaches the model provider, that the plugin loads and reports its features, and that the doctor catches a broken install. That mode needs the `opencode` binary and uses no model. CI runs the default suite on Linux, macOS and Windows; the real-OpenCode tests have only been run on macOS. If you change a guard, add the case that motivated the change to its test file.
 
-Behavior evals, which check what the agents and skills do with a real model, live in [`evals/`](evals/README.md). They run on the Claude Code eval harness, so they aren't part of this port yet.
+Behavior evals, which check what the agents and skills do with a real model, live in [`evals/`](evals/README.md). They are run by `npm run eval` (see that README); they cost money and are not part of CI.
 
 Internals are documented in [`plugins/engineering-team/README.md`](plugins/engineering-team/README.md) (written for the Claude Code version; not updated yet).

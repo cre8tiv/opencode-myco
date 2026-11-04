@@ -1,5 +1,5 @@
 ---
 type: tool_used
-tool: Skill
-input_match: '"skill"\s*:\s*"(?:[\w-]+:)?log-friction"'
+tool: skill|log_friction
+input_match: '"id"\s*:\s*"log-friction"|"kind"'
 ---

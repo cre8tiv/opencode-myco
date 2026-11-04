@@ -146,14 +146,13 @@ export function usageRecords({ lead, children = new Map(), snap = new Date().toI
 /**
  * Runs OpenCode. MYCO_OPENCODE names a script to run with node in place of it; the tests use it, as
  * the merge gate's tests use MERGE_GATE_GH.
- * @param {string[]} args @param {string} cwd
+ * @param {string[]} args @param {string} cwd @param {number} [timeoutMs] how long to wait: a query is quick, a model run is not
  * @returns {{status: number | null, stdout: string, stderr: string}}
  */
-export function execOpencode(args, cwd) {
+export function execOpencode(args, cwd, timeoutMs = 120000) {
   const script = process.env.MYCO_OPENCODE;
-  const res = script
-    ? spawnSync(process.execPath, [script, ...args], { cwd, encoding: 'utf8', timeout: 120000, maxBuffer: 256 * 1024 * 1024 })
-    : spawnSync('opencode', args, { cwd, encoding: 'utf8', timeout: 120000, maxBuffer: 256 * 1024 * 1024 });
+  const opts = { cwd, encoding: /** @type {const} */ ('utf8'), timeout: timeoutMs, maxBuffer: 256 * 1024 * 1024 };
+  const res = script ? spawnSync(process.execPath, [script, ...args], opts) : spawnSync('opencode', args, opts);
   // A spawn that failed has no exit status: say why, so a missing binary is not confused with a timeout.
   const missing = res.error?.code === 'ENOENT';
   return { status: res.status ?? (missing ? 127 : null), stdout: res.stdout || '', stderr: res.stderr || (res.error && !missing ? res.error.message : '') };

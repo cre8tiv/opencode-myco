@@ -1,5 +1,5 @@
 ---
 type: tool_used
-tool: Skill
-input_match: '"skill"\s*:\s*"(?:[\w-]+:)?start-work"'
+tool: skill|start_work
+input_match: '"id"\s*:\s*"start-work"|"tag"'
 ---

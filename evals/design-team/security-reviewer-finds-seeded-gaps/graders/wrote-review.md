@@ -1,5 +1,5 @@
 ---
 type: tool_used
-tool: Write
+tool: write|edit
 input_match: 'order-export[/\\]+security-review\.md'
 ---
