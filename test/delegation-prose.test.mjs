@@ -16,7 +16,7 @@ const agents = readdirSync(join(ROOT, 'plugins')).flatMap((team) => {
 });
 
 test('no agent is told to use a Claude Code tool OpenCode does not have', () => {
-  const claudeOnly = /\bSendMessage\b|\bTaskCreate\b|\bTaskUpdate\b|\bTaskList\b|claude -p/;
+  const claudeOnly = /\bSendMessage\b|\bTaskCreate\b|\bTaskUpdate\b|\bTaskList\b|claude -p|`Agent`|\bAgent tool\b/;
   for (const a of agents) assert.doesNotMatch(a.text, claudeOnly, a.id);
 });
 
@@ -25,5 +25,7 @@ test('the leads dispatch with delegate, and the engineering lead isolates the ag
   for (const lead of ['engineering-team/tech-lead', 'design-team/product-lead']) assert.match(by[lead], /`delegate`/, lead);
   assert.match(by['engineering-team/tech-lead'], /`isolated: true`/);
   assert.match(by['engineering-team/tech-lead'], /`sessionID`/);
+  // QA starts from the IC's existing branch, so a branch to create would fail the dispatch.
+  assert.match(by['engineering-team/tech-lead'], /QA no `branch`/);
   assert.match(by['design-team/product-lead'], /`sessionID`/);
 });
