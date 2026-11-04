@@ -148,6 +148,28 @@ describe('the merge gate', () => {
   });
 });
 
+describe('commands another plugin has rewritten', () => {
+  // The caveman plugin rewrites a shell command to this before the guards run; in a live run the
+  // merge went through because neither the guard nor the native rule recognised it.
+  const WRAP = "'/opt/homebrew/bin/node' '/opt/homebrew/bin/caveman' shrink -- ";
+
+  test('a merge behind a wrapper, or with options before the subcommand, is still stopped', async (t) => {
+    const { ask } = await guarded(t);
+    for (const command of [WRAP + 'gh pr merge 5', WRAP + 'git push origin main', 'rtk gh pr merge 5', 'gh --repo o/r pr merge 5']) {
+      assert.match(ask({ agent: LEAD, tool: 'shell', input: { command } }) ?? '', /merge_policy is "human-approval"/, command);
+    }
+    assert.equal(ask({ agent: LEAD, tool: 'shell', input: { command: WRAP + 'git log --oneline -5' } }), null);
+  });
+
+  test('a write behind a wrapper is still stopped for the coach', async (t) => {
+    const { ask } = await guarded(t);
+    for (const command of [WRAP + 'rm -rf .claude/team', 'rtk rm -rf .claude/team', WRAP + 'echo x > c.txt']) {
+      assert.match(ask({ agent: COACH, tool: 'shell', input: { command } }) ?? '', /propose-only/, command);
+    }
+    assert.equal(ask({ agent: COACH, tool: 'shell', input: { command: WRAP + 'git log --oneline -5' } }), null);
+  });
+});
+
 describe('where the project profile is looked for', () => {
   test('it is the directory the plugin instance runs in', () => {
     assert.equal(profileDirectory({ location: { directory: '/work/proj' } }), '/work/proj');

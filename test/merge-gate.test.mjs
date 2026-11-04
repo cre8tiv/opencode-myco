@@ -433,3 +433,79 @@ describe('merge_policy: autonomous requires a passing QA run', () => {
     assert.match(out.stderr, /merging is a human's/);
   });
 });
+
+describe('commands another plugin has wrapped, or spelled with options', () => {
+  // A plugin that rewrites commands runs before this gate and hands it
+  // "node …/caveman shrink -- gh pr merge 42", which starts with "node". In a live run the PR
+  // merge went through. The gate must judge the command that will actually run. Options placed
+  // before the subcommand (gh --repo o/r pr merge) are the same hole without any wrapper.
+  const CAVEMAN = "'/opt/homebrew/bin/node' '/opt/homebrew/bin/caveman' shrink --";
+  const BLOCKED = [
+    `${CAVEMAN} gh pr merge 42`,
+    `${CAVEMAN} gh pr merge 42 --squash`,
+    `${CAVEMAN} gh api -X PUT repos/acme/app/pulls/42/merge`,
+    `${CAVEMAN} az repos pr update --id 42 --status completed`,
+    `${CAVEMAN} git push origin main`,
+    `${CAVEMAN} bash -c "gh pr merge 42"`,
+    'rtk gh pr merge 42',
+    'rtk git push origin main',
+    'env GH_TOKEN=abc gh pr merge 42',
+    'time gh pr merge 42',
+    'nohup git push origin HEAD:main',
+    'gh --repo acme/app pr merge 42',
+    'gh -R acme/app pr merge 42 --squash',
+    'rtk gh --repo acme/app pr merge 42',
+    '/usr/local/bin/gh pr merge 42',
+    // Wrapper options that take a value: the gate searches the whole command, so none of them hides a merge.
+    'env -u NAME gh pr merge 42',
+    'env -C src git push origin main',
+    'sudo -u root gh pr merge 42',
+    'time -o out.txt gh pr merge 42',
+    'stdbuf -o L git push origin HEAD:main',
+    'env -S "gh pr merge 42"',
+  ];
+  for (const command of BLOCKED) {
+    test(`blocks: ${command}`, async (t) => {
+      const sb = sandbox(t);
+      writeProfile(sb.project, { merge_policy: 'human-approval', trunk_branch: 'main' });
+      const r = await gate(sb, { command });
+      assert.equal(r.status, 2, r.stderr);
+      assert.match(r.stderr, /human/i);
+    });
+  }
+
+  const ALLOWED = [
+    `${CAVEMAN} gh pr view 42`,
+    `${CAVEMAN} git push origin feature/x`,
+    `${CAVEMAN} git merge origin/main`,
+    `${CAVEMAN} git log --oneline -5`,
+    `${CAVEMAN} git commit -m "docs: explain how gh pr merge is gated"`,
+    'rtk gh pr view 42',
+    'rtk git status',
+    'rtk git push -u origin CLOUD-123-retry-logic',
+    'gh --repo acme/app pr view 42',
+    'gh -R acme/app pr checks 42',
+    'git stash push -m main',
+  ];
+  for (const command of ALLOWED) {
+    test(`allows: ${command}`, async (t) => {
+      const sb = sandbox(t);
+      writeProfile(sb.project, { merge_policy: 'human-approval', trunk_branch: 'main' });
+      const r = await gate(sb, { command });
+      assert.equal(r.status, 0, r.stderr);
+    });
+  }
+});
+
+describe('what widening the search costs', () => {
+  test('an unquoted mention of a merge command is treated as the command; a quoted one is not', async (t) => {
+    // Searching the whole command for a merge is what catches a merge behind a wrapper. The price is
+    // that "echo gh pr merge 42", unquoted, looks like one. Quoted text is blanked, so messages and
+    // arguments that mention it in quotes (the realistic case) are unaffected.
+    const sb = sandbox(t);
+    writeProfile(sb.project, { merge_policy: 'human-approval', trunk_branch: 'main' });
+    assert.equal((await gate(sb, { command: 'echo gh pr merge 42' })).status, 2);
+    assert.equal((await gate(sb, { command: 'echo "gh pr merge 42"' })).status, 0);
+    assert.equal((await gate(sb, { command: "git commit -m 'docs: gh pr merge is gated'" })).status, 0);
+  });
+});

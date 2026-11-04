@@ -39,6 +39,42 @@ const MUTATING = new Set([
 /** Shells whose -c / -Command argument is itself a command line to inspect. */
 const SHELLS = new Set(['bash', 'sh', 'zsh', 'pwsh', 'powershell', 'cmd']);
 
+/**
+ * Commands that run another command: judge what they run. Plugins that rewrite or shrink command
+ * output put the real command behind one before this guard sees it, as "rtk rm -rf x".
+ */
+const WRAPPERS = new Set(['rtk', 'env', 'time', 'command', 'nohup', 'exec', 'builtin', 'stdbuf', 'sudo']);
+
+/**
+ * The options of each wrapper that take a value in the next word: in "env -u NAME rm -rf x", NAME is
+ * the option's value, not the command. A value attached to its option ("--chdir=src", "-oL") is one
+ * word and needs no entry. A wrapper not listed has no such options, or none that matter here.
+ */
+const WRAPPER_VALUE_OPTIONS = {
+  env: new Set(['-u', '--unset', '-C', '--chdir', '-S', '--split-string']),
+  time: new Set(['-o', '--output', '-f', '--format']),
+  exec: new Set(['-a']),
+  stdbuf: new Set(['-i', '-o', '-e', '--input', '--output', '--error']),
+  sudo: new Set(['-u', '--user', '-g', '--group', '-C', '-D', '--chdir', '-h', '--host', '-p', '--prompt', '-r', '--role', '-t', '--type', '-T', '--command-timeout', '-U', '--other-user']),
+};
+
+/**
+ * How many of a wrapper's words are its own options, and the values they take, before the command it runs.
+ * @param {string} verb @param {{text: string, quoted: boolean}[]} args @returns {number}
+ */
+function wrapperOptionWords(verb, args) {
+  const takesValue = WRAPPER_VALUE_OPTIONS[verb] || new Set();
+  let i = 0;
+  while (i < args.length && args[i].text.startsWith('-') && !args[i].quoted) {
+    if (args[i].text === '--') return i + 1; // the end of the options
+    i += takesValue.has(args[i].text) ? 2 : 1;
+  }
+  return i;
+}
+
+/** How many wrappers or nested shells to look through. */
+const MAX_DEPTH = 4;
+
 /** PowerShell parameters whose value is content or a setting, not a path. */
 const NON_PATH_PARAMS = new Set(['-encoding', '-value', '-itemtype', '-filter', '-include', '-exclude', '-width']);
 
@@ -109,6 +145,69 @@ function tokenize(cmd) {
   return toks;
 }
 
+/** @param {string} word @returns {string} the command a word names: no directory, no .exe, lower case */
+const verbOf = (word) => (word.split(/[\\/]/).pop() || '').toLowerCase().replace(/\.exe$/, '');
+
+/**
+ * The first disallowed write one command (its words, redirects already dealt with) makes, looking
+ * through anything that merely runs another command.
+ * @param {{text: string, quoted: boolean}[]} words
+ * @param {number} depth how many wrappers and nested shells deep this is
+ * @returns {string | null}
+ */
+function judgeWords(words, depth) {
+  // Skip env assignments to reach the command itself.
+  let v = 0;
+  while (v < words.length && /^\w+=/.test(words[v].text)) v++;
+  if (v >= words.length) return null;
+  const verb = verbOf(words[v].text);
+  const args = words.slice(v + 1);
+
+  // "rtk rm -rf x": the command that runs is what follows the wrapper and its options.
+  if (WRAPPERS.has(verb) && depth < MAX_DEPTH) {
+    // env -S "rm -rf x": the value of -S is itself a command line.
+    if (verb === 'env') {
+      const split = args.findIndex((a) => a.text === '-S' || a.text === '--split-string');
+      if (split >= 0 && args[split + 1]) {
+        const inner = disallowedWrite(args[split + 1].text, depth + 1);
+        if (inner) return inner;
+      }
+    }
+    return judgeWords(args.slice(wrapperOptionWords(verb, args)), depth + 1);
+  }
+
+  if (SHELLS.has(verb) && depth < MAX_DEPTH) {
+    const i = args.findIndex((a) => /^(-c|-lc|-command|\/c)$/i.test(a.text));
+    if (i >= 0 && args[i + 1]) {
+      const inner = disallowedWrite(args[i + 1].text, depth + 1);
+      if (inner) return inner;
+    }
+  }
+
+  const inPlace = (verb === 'sed' || verb === 'perl') && args.some((a) => /^-(?!-)[A-Za-z]*i|^--in-place/.test(a.text));
+  if (MUTATING.has(verb) || inPlace) {
+    for (let i = 0; i < args.length; i++) {
+      const a = args[i];
+      if (a.text.startsWith('-') && !a.quoted) {
+        if (NON_PATH_PARAMS.has(a.text.toLowerCase())) i++;
+        continue;
+      }
+      // A quoted word that isn't path-shaped is content (`Set-Content f "text"`).
+      if (a.quoted && !pathLike(a.text)) continue;
+      const path = a.text.replace(/^of=/, '');
+      if (!allowed(path)) return path;
+    }
+    return null;
+  }
+
+  // An unfamiliar command followed by "--" and another command: "node wrapper.js shrink -- rm -rf x".
+  // What follows runs, whatever the wrapper is. Commands that know "--" as the end of their options
+  // are the familiar ones above (rm -- file) and never reach here.
+  const dd = words.findIndex((w, i) => i > v && w.text === '--' && !w.quoted);
+  if (dd >= 0 && depth < MAX_DEPTH) return judgeWords(words.slice(dd + 1), depth + 1);
+  return null;
+}
+
 /**
  * The first write in a command line that isn't to an allowed location.
  * @param {string} cmd
@@ -137,35 +236,8 @@ export function disallowedWrite(cmd, depth = 0) {
       } else words.push(seg[i]);
     }
 
-    // Skip env assignments and wrappers to reach the command itself.
-    let v = 0;
-    while (v < words.length && (/^\w+=/.test(words[v].text) || words[v].text === 'sudo')) v++;
-    if (v >= words.length) continue;
-    const verb = (words[v].text.split(/[\\/]/).pop() || '').toLowerCase().replace(/\.exe$/, '');
-    const args = words.slice(v + 1);
-
-    if (SHELLS.has(verb) && depth < 3) {
-      const i = args.findIndex((a) => /^(-c|-lc|-command|\/c)$/i.test(a.text));
-      if (i >= 0 && args[i + 1]) {
-        const inner = disallowedWrite(args[i + 1].text, depth + 1);
-        if (inner) return inner;
-      }
-    }
-
-    const inPlace = (verb === 'sed' || verb === 'perl') && args.some((a) => /^-(?!-)[A-Za-z]*i|^--in-place/.test(a.text));
-    if (!MUTATING.has(verb) && !inPlace) continue;
-
-    for (let i = 0; i < args.length; i++) {
-      const a = args[i];
-      if (a.text.startsWith('-') && !a.quoted) {
-        if (NON_PATH_PARAMS.has(a.text.toLowerCase())) i++;
-        continue;
-      }
-      // A quoted word that isn't path-shaped is content (`Set-Content f "text"`).
-      if (a.quoted && !pathLike(a.text)) continue;
-      const path = a.text.replace(/^of=/, '');
-      if (!allowed(path)) return path;
-    }
+    const found = judgeWords(words, depth);
+    if (found) return found;
   }
   return null;
 }
