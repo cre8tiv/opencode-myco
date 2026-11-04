@@ -25,7 +25,6 @@
     "plugins/engineering-team/templates/team/project.md": "cd000064e33e6f82a9e0c9285c3af9f9e4031fbaa4c437ad35175c3b2d9986f2",
     "plugins/team-ops/scripts/otlp.mjs": "f4b1b0e061f6452d79f5279a1945896a6718a635d9ce7b90618f85dedb81a508",
     "plugins/team-ops/scripts/profile.mjs": "28e5bc892c5757cc358c0fc13ae92f22beedc3fd14acfd97ba88fd2d019a44b2",
-    "plugins/team-ops/telemetry/README.md": "b0d59dd6b37e425aa38090058806b2093b9d21d85b1d0562559f9299ca18e07d",
     "plugins/team-ops/telemetry/stack/docker-compose.yml": "b814062c6c6dee1f4397df6bfd5ebfd98633f2146dfa9af9af170b7d84c3809b",
     "plugins/team-ops/telemetry/stack/grafana/dashboards/agent-teams.json": "258d924a8370ccc281f54da5cc301d433ed00ac0bda950a1979416d97cb83f3a",
     "plugins/team-ops/telemetry/stack/grafana/provisioning/dashboards/dashboards.yml": "fd8b9aafa7156ca5e416fa9da188dc85f0a3139e58475a83bb5f2e55a87bfc8f",
@@ -38,6 +37,7 @@
   },
   "diverged": {
     "plugins/design-team/templates/package-index.md": "OpenCode: start-session command names the agent in OpenCode's form",
-    "plugins/team-ops/templates/report-template.md": "OpenCode: skill name is bare (cost-report), not team-ops:cost-report"
+    "plugins/team-ops/templates/report-template.md": "OpenCode: skill name is bare (cost-report), not team-ops:cost-report",
+    "plugins/team-ops/telemetry/README.md": "Rewritten for OpenCode: no Claude Code export, team-ops variables set in the shell environment, cost exported when a cost report runs."
   }
 }
