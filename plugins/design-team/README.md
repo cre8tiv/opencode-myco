@@ -107,7 +107,7 @@ The tech lead reads the package index first. Requirement IDs become tickets, `SE
 
 ## Troubleshooting
 
-**The `design-team/product-lead` agent isn't offered.** Run `myco doctor` and reinstall with `node scripts/install.mjs` if an agent is missing.
+**The `design-team/product-lead` agent isn't offered.** Run the doctor, `node ~/.config/opencode/myco/team-ops/scripts/doctor.mjs` (or the `myco` folder of the config directory you installed into), and reinstall with `node scripts/install.mjs` if an agent is missing.
 
 **The product lead can't reach Confluence, Figma or another system `design.md` names.** The MCP server isn't connected in this session, or the tool prefix in the profile is wrong. Ask for the `init-design` skill again to re-detect and re-verify (`opencode mcp list` shows what is connected).
 

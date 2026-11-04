@@ -57,7 +57,7 @@ It writes `.claude/ops/reports/<date>-agent-health.md` in the fixed format from 
 
 ## Troubleshooting
 
-**The event stream is empty after real work.** The plugin loads when OpenCode starts — restart after installing, and run `myco doctor` to see whether it loaded.
+**The event stream is empty after real work.** The plugin loads when OpenCode starts — restart after installing, and run the doctor, `node ~/.config/opencode/myco/team-ops/scripts/doctor.mjs` (or the `myco` folder of the config directory you installed into), to see whether it loaded.
 
 **Telemetry lands in a directory named after the project folder.** `stream:` can't be read from either profile. Check the key is present in the frontmatter and the profile is committed.
 

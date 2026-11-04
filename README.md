@@ -359,7 +359,7 @@ Start with the doctor. Most of what follows it reports directly.
 
 **Tracker transitions fail silently.** The MCP tool prefix recorded in `project.md` doesn't match the server actually available in your session. Check the real prefix and correct the profile.
 
-**An IC's changes land in the wrong place.** ICs and QA get their own worktree only when the lead delegates with `isolated: true`; a lead that used `subagent` instead put the agent in the shared checkout. Check the lead's call, and that the `delegate` feature is active in `myco doctor`.
+**An IC's changes land in the wrong place.** ICs and QA get their own worktree only when the lead delegates with `isolated: true`; a lead that used `subagent` instead put the agent in the shared checkout. Check the lead's call, and that the `delegate` feature is active in the [doctor](#myco-doctor)'s output.
 
 **A reinstall reverted a change I made to an agent.** Expected: agent definitions are installed content. Project-specific behavior belongs in `.claude/team/project.md`; if the change is general, send it upstream.
 
