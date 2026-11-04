@@ -173,6 +173,23 @@ describe('an isolated agent', () => {
     assert.match(git(sb.project, 'branch', '--list', 'feature/kept'), /feature\/kept/, 'the branch, and the work on it, stays');
   });
 
+  test('a detached worktree whose commit was pushed to a remote branch leaves nothing to keep', async (t) => {
+    // QA commits its report detached and pushes it to origin: the remote branch holds the commit.
+    const { sb, calls, run } = await setup(t, {
+      onPrompt: (_i, c) => {
+        const dir = c.created[0].location.directory;
+        git(dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'qa report');
+        const origin = join(sb.root, 'origin.git');
+        git(sb.root, 'init', '-q', '--bare', origin);
+        git(dir, 'push', '-q', origin, 'HEAD:refs/heads/feature/x');
+        git(dir, 'fetch', '-q', origin, 'feature/x:refs/remotes/origin/feature/x');
+      },
+    });
+    const r = await run({ agent: 'engineering-team/qa-specialist', description: 'x', prompt: 'p', isolated: true });
+    assert.equal(r.output.worktreeRemoved, true);
+    assert.equal(calls.removed.length, 1);
+  });
+
   test('a detached commit no branch holds is kept: removing the worktree would lose it', async (t) => {
     const { calls, run } = await setup(t, {
       onPrompt: (_i, c) => git(c.created[0].location.directory, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'orphan'),

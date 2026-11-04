@@ -55,7 +55,8 @@ const baseOf = (dir) => {
 
 /**
  * True when an isolated worktree holds nothing worth keeping: no uncommitted changes, and either no new commits or a
- * detached HEAD at a commit some branch already has (a reviewer that checked out the commit it was reviewing).
+ * detached HEAD at a commit some branch, local or remote, already has (a reviewer that checked out the commit it was
+ * reviewing, or QA after pushing its report).
  */
 function untouched(dir, base) {
   try {
@@ -68,7 +69,7 @@ function untouched(dir, base) {
     } catch {
       detached = true; // symbolic-ref fails when HEAD is not on a branch
     }
-    return detached && git(dir, 'for-each-ref', '--contains', head, 'refs/heads').length > 0;
+    return detached && git(dir, 'for-each-ref', '--contains', head, 'refs/heads', 'refs/remotes').length > 0;
   } catch {
     return false;
   }
