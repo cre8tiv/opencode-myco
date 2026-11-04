@@ -86,12 +86,13 @@ if (source !== 'opencode' && source !== 'claude') {
 let updated = [];
 /** @type {string[]} */
 let unreadable = [];
+let unreadableChildren = 0;
 let refreshError = '';
 if (!opts['no-backfill']) {
   if (source === 'claude') updated = backfill(dir);
   else {
     try {
-      ({ updated, failed: unreadable } = refreshFromOpenCode({ dir, cwd: process.cwd() }));
+      ({ updated, failed: unreadable, unreadableChildren } = refreshFromOpenCode({ dir, cwd: process.cwd() }));
     } catch (e) {
       // Report what was recorded already, and say why it may be stale.
       refreshError = e instanceof Error ? e.message : String(e);
@@ -145,7 +146,7 @@ const total = list.reduce((s, g) => s + g.cost, 0);
 
 if (opts.json) {
   console.log(JSON.stringify({
-    stream, by, work: prefix || null, since: since || null, prices_as_of: pricesAsOf(), backfilled_sessions: filled, source, refresh_error: refreshError || null, unreadable_sessions: unreadable.length, export: exportResult,
+    stream, by, work: prefix || null, since: since || null, prices_as_of: pricesAsOf(), backfilled_sessions: filled, source, refresh_error: refreshError || null, unreadable_sessions: unreadable.length + unreadableChildren, export: exportResult,
     total_usd: Number(total.toFixed(4)),
     groups: list.map((g) => ({ key: g.key, usd: Number(g.cost.toFixed(4)), unpriced_models: g.unpriced, sessions: g.sessions.size, output_tokens: g.output, input_tokens: g.input_total, first: g.first, last: g.last,
       by_agent: Object.fromEntries([...g.agents].sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Number(v.toFixed(4))])) })),
@@ -153,9 +154,9 @@ if (opts.json) {
 } else {
   const title = prefix ? `Cost of ${prefix}` : 'Cost';
   console.log(`# ${title}, by ${by}\n`);
-  console.log(`Stream \`${stream}\`${since ? `, since ${since}` : ''}. API-equivalent estimate at list prices as of ${pricesAsOf()}; a subscription bills differently.${filled ? ` Refreshed ${filled} session(s) from ${source === 'claude' ? 'transcripts' : 'OpenCode'}.` : ''}${refreshError ? ` Could not refresh from OpenCode (${refreshError}); showing what was recorded.` : ''}${unreadable.length ? ` ${unreadable.length} session(s) could not be read.` : ''}${exportResult?.error ? ` OTLP export failed: ${exportResult.error}.` : exportResult?.exported ? ` Exported ${exportResult.exported} session(s) to OTLP.` : ''}\n`);
+  console.log(`Stream \`${stream}\`${since ? `, since ${since}` : ''}. API-equivalent estimate at list prices as of ${pricesAsOf()}; a subscription bills differently.${filled ? ` Refreshed ${filled} session(s) from ${source === 'claude' ? 'transcripts' : 'OpenCode'}.` : ''}${refreshError ? ` Could not refresh from OpenCode (${refreshError}); showing what was recorded.` : ''}${unreadable.length + unreadableChildren ? ` ${unreadable.length + unreadableChildren} session(s) could not be read.` : ''}${exportResult?.error ? ` OTLP export failed: ${exportResult.error}.` : exportResult?.exported ? ` Exported ${exportResult.exported} session(s) to OTLP.` : ''}\n`);
   if (!list.length) {
-    console.log('No usage recorded yet. Usage is read from the OpenCode sessions of team agents (agents named team/role) in this project.');
+    console.log(source === 'claude' ? 'No usage recorded yet. Usage is captured when a team lead session ends and when each team agent finishes.' : 'No usage recorded yet. Usage is read from the OpenCode sessions of team agents (agents named team/role) in this project.');
   } else {
     console.log(`| ${by === 'work' ? 'Work' : by[0].toUpperCase() + by.slice(1)} | Cost | Sessions | Output | Input (incl. cache) | Biggest spenders |`);
     console.log('| --- | ---: | ---: | ---: | ---: | --- |');

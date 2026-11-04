@@ -151,11 +151,42 @@ describe('cost.mjs over OpenCode', () => {
     const { report } = setup(t, (db) => {
       db.sessions.push({ ...db.sessions[0], id: 'ses_other', project: 'proj-2' }, { ...db.sessions[0], id: 'ses_human', agent: 'build' });
       db.contexts.ses_other = db.contexts.ses_lead;
-      db.contexts.ses_human = db.contexts.ses_lead;
+      db.contexts.ses_human = [msg(1, [], tokens(5, 5), 'build')];
       return db;
     });
     const r = await report(['--by', 'session']);
     assert.deepEqual(r.json.groups.map((g) => g.key), ['ses_lead']);
+  });
+
+  test('a team agent dispatched from a human session is counted, and the human session is not', async (t) => {
+    const { report } = setup(t, (db) => {
+      db.sessions[0].agent = 'build';
+      db.contexts.ses_lead = db.contexts.ses_lead.map((m) => ({ ...m, agent: 'build' }));
+      return db;
+    });
+    const r = await report(['--by', 'agent']);
+    assert.deepEqual(r.json.groups.map((g) => g.key), ['design-team/architect']);
+  });
+
+  test('a dispatched session OpenCode no longer has does not lose the rest of the lead\'s usage', async (t) => {
+    const { report } = setup(t, (db) => {
+      db.sessions = db.sessions.filter((s) => s.id !== 'ses_arch');
+      return db;
+    });
+    const r = await report();
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.json.unreadable_sessions, 1);
+    near(group(r.json, 'order-exceptions/round-1').usd, 6);
+    assert.equal(group(r.json, 'order-exceptions/arch'), undefined);
+  });
+
+  test('an empty report names the source it read', async (t) => {
+    const { sb, env } = setup(t, (db) => ({ ...db, sessions: [] }));
+    const open = await runNode(COST, { cwd: sb.project, env });
+    assert.match(open.stdout, /OpenCode sessions/);
+    const claude = await runNode(COST, { args: ['--source', 'claude'], cwd: sb.project, env });
+    assert.match(claude.stdout, /team lead session ends/);
+    assert.doesNotMatch(claude.stdout, /OpenCode sessions/);
   });
 
   test('a model with no list price is shown as unpriced, not as free', async (t) => {

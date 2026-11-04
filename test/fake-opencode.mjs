@@ -21,7 +21,14 @@ let m;
 if (path === '/api/project') out({ data: [{ id: 'proj-1', canonical: process.cwd(), sandboxes: [] }] });
 else if (path === '/api/session') out({ data: db.sessions.filter((s) => s.project === params.project), cursor: {} });
 else if ((m = path.match(/^\/api\/session\/([^/]+)\/context$/))) out({ data: db.contexts[m[1]] || [] });
-else if ((m = path.match(/^\/api\/session\/([^/]+)$/))) out({ data: db.sessions.find((s) => s.id === m[1]) });
+else if ((m = path.match(/^\/api\/session\/([^/]+)$/))) {
+  const found = db.sessions.find((s) => s.id === m[1]);
+  if (!found) {
+    console.error('fake opencode: no session ' + m[1]);
+    process.exit(1);
+  }
+  out({ data: found });
+}
 else {
   console.error('fake opencode: no route ' + path);
   process.exit(1);

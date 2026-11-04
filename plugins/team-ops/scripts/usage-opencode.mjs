@@ -54,6 +54,7 @@ export function dispatchesOf(messages) {
   for (const m of messages || []) {
     if (m?.type !== 'assistant') continue;
     for (const c of m.content || []) {
+      // In a stored session the child is named in the tool part's metadata (the live hook result carries it as output.sessionID).
       const id = c?.type === 'tool' && c.name === 'subagent' ? c.state?.metadata?.sessionID : null;
       if (id) out.push({ sessionID: id, description: c.state?.input?.description, at: timeOf(m) });
     }
@@ -152,7 +153,9 @@ export function execOpencode(args, cwd) {
   const res = script
     ? spawnSync(process.execPath, [script, ...args], { cwd, encoding: 'utf8', timeout: 120000, maxBuffer: 256 * 1024 * 1024 })
     : spawnSync('opencode', args, { cwd, encoding: 'utf8', timeout: 120000, maxBuffer: 256 * 1024 * 1024 });
-  return { status: res.status ?? (res.error ? 127 : null), stdout: res.stdout || '', stderr: res.stderr || '' };
+  // A spawn that failed has no exit status: say why, so a missing binary is not confused with a timeout.
+  const missing = res.error?.code === 'ENOENT';
+  return { status: res.status ?? (missing ? 127 : null), stdout: res.stdout || '', stderr: res.stderr || (res.error && !missing ? res.error.message : '') };
 }
 
 /** A GET against OpenCode's API, parsed. */
@@ -191,7 +194,7 @@ function projectOf(exec, cwd) {
  * snapshot is cumulative and supersedes the earlier one, so doing this twice records the same thing.
  * Sessions OpenCode no longer has are not lost: what was recorded stays.
  * @param {{dir: string, cwd: string, exec?: typeof execOpencode, now?: () => number}} p dir is the stream directory
- * @returns {{updated: string[], failed: string[]}} the sessions recorded, and the ones that could not be read
+ * @returns {{updated: string[], failed: string[], unreadableChildren: number}} the sessions recorded, the ones that could not be read, and dispatched sessions that could not be
  */
 export function refreshFromOpenCode({ dir, cwd, exec = execOpencode, now = Date.now }) {
   const snap = new Date(now()).toISOString();
@@ -215,15 +218,22 @@ export function refreshFromOpenCode({ dir, cwd, exec = execOpencode, now = Date.
 
   const updated = [];
   const failed = [];
+  let unreadableChildren = 0;
   for (const s of sessions.values()) {
-    if (s.parentID || !isTeam(s.agent)) continue;
+    // A session that is not a team agent is read too: a team agent it dispatched is still the teams' cost.
+    if (s.parentID) continue;
     if (seen.has(s.id) && seen.get(s.id) >= (s.time?.updated ?? 0)) continue;
     try {
       const messages = listOf(get(exec, cwd, `/api/session/${s.id}/context`));
       const children = new Map();
       for (const d of dispatchesOf(messages)) {
-        const info = get(exec, cwd, `/api/session/${d.sessionID}`);
-        children.set(d.sessionID, { info: info?.data || info, messages: listOf(get(exec, cwd, `/api/session/${d.sessionID}/context`)) });
+        // One dispatched session OpenCode no longer has must not lose the rest of the lead's usage.
+        try {
+          const info = get(exec, cwd, `/api/session/${d.sessionID}`);
+          children.set(d.sessionID, { info: info?.data || info, messages: listOf(get(exec, cwd, `/api/session/${d.sessionID}/context`)) });
+        } catch {
+          unreadableChildren++;
+        }
       }
       const records = usageRecords({ lead: { id: s.id, info: s, messages }, children, snap });
       appendUsage(dir, records);
@@ -232,5 +242,5 @@ export function refreshFromOpenCode({ dir, cwd, exec = execOpencode, now = Date.
       failed.push(s.id);
     }
   }
-  return { updated, failed };
+  return { updated, failed, unreadableChildren };
 }
