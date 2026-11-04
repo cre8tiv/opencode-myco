@@ -333,6 +333,21 @@ describe('sessions and events', () => {
     assert.equal(rows[0].session, 'ses_lead');
   });
 
+  test('an agent delegate isolated is not a lead either, in the instance that serves its worktree, which never saw the lead', async (t) => {
+    const c = await capture(t);
+    serve(c, 'ses_iso', IC);
+    // No parentID, as delegate creates it; the link is the metadata, and the work is the task's own [TAG].
+    c.send({ type: 'session.created', data: { sessionID: 'ses_iso', title: '[CLOUD-9] build', agent: IC, metadata: { mycoParent: 'ses_lead' }, location: { directory: c.sb.project } } });
+    c.send({ type: 'session.execution.succeeded', data: { sessionID: 'ses_iso' } });
+    await c.quiet();
+    c.after({ tool: 'shell', agent: IC, sessionID: 'ses_iso', input: { command: 'make' }, status: 'error', error: { message: 'boom' } });
+    const [rec] = await c.events();
+    await c.quiet();
+    assert.equal(rec.event, 'PostToolUseFailure');
+    assert.equal(rec.work, 'CLOUD-9');
+    assert.equal((await c.events(0)).some((r) => r.event === 'SessionEnd'), false);
+  });
+
   test('a dispatched agent starts on its lead\'s work, or on the [TAG] its task begins with', async (t) => {
     const c = await capture(t);
     await c.work.set('ses_lead', 'order-exceptions/phase-1');

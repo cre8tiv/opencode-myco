@@ -18,7 +18,7 @@ const IC = 'engineering-team/ic-generalist';
 const assistantText = (text) => ({ type: 'assistant', content: [{ type: 'text', text }] });
 
 /** A git project, and a plugin context whose sessions answer as the test says. */
-async function setup(t, { report = 'done', outcome, error, onPrompt, createFails } = {}) {
+async function setup(t, { report = 'done', outcome, error, onPrompt, createFails, noId, promptFails } = {}) {
   const sb = sandbox(t);
   git(sb.project, 'init', '-q', '-b', 'main');
   git(sb.project, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init');
@@ -43,10 +43,11 @@ async function setup(t, { report = 'done', outcome, error, onPrompt, createFails
       create: async (input) => {
         if (createFails) throw new Error('create failed');
         calls.created.push(input);
-        return { id: `ses_child_${calls.created.length}` };
+        return noId ? {} : { id: `ses_child_${calls.created.length}` };
       },
       prompt: async (input) => {
         calls.prompts.push(input);
+        if (promptFails) throw new Error('prompt failed');
         await onPrompt?.(input, calls);
       },
       wait: async () => undefined,
@@ -151,6 +152,26 @@ describe('an isolated agent', () => {
     const { calls, run } = await setup(t, { createFails: true });
     await assert.rejects(() => run({ agent: IC, description: 'x', prompt: 'p', isolated: true }), /create failed/);
     assert.equal(calls.removed.length, 1);
+  });
+
+  test('a session the host answers without an id does not strand the worktree', async (t) => {
+    const { calls, run } = await setup(t, { noId: true });
+    await assert.rejects(() => run({ agent: IC, description: 'x', prompt: 'p', isolated: true }), /did not say which/);
+    assert.equal(calls.removed.length, 1);
+  });
+
+  test('a prompt that throws removes the untouched worktree and the branch made in it', async (t) => {
+    const { sb, calls, run } = await setup(t, { promptFails: true });
+    await assert.rejects(() => run({ agent: IC, description: 'x', prompt: 'p', isolated: true, branch: 'feature/gone' }), /prompt failed/);
+    assert.equal(calls.removed.length, 1);
+    assert.equal(git(sb.project, 'branch', '--list', 'feature/gone'), '', 'the branch delegate made is deleted with it');
+  });
+
+  test('a branch that already existed is never deleted by cleanup', async (t) => {
+    const { sb, run } = await setup(t);
+    git(sb.project, 'branch', 'taken');
+    await assert.rejects(() => run({ agent: IC, description: 'x', prompt: 'p', isolated: true, branch: 'taken' }), /Could not start branch/);
+    assert.match(git(sb.project, 'branch', '--list', 'taken'), /taken/);
   });
 
   test('continuing a session does not take isolated', async (t) => {

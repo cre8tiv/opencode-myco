@@ -168,9 +168,13 @@ export async function registerCapture(ctx, root, work = createWorkTracker(ctx)) 
     if (!d?.sessionID) return;
     if (ev.type === 'session.created') {
       // A dispatched agent's session names its parent and, as its title, the task it was given,
-      // so it can start on the work its lead was on, or the [TAG] the task begins with.
-      if (!d.parentID || d.location?.directory !== ctx.location?.directory) return;
-      sessions.set(d.sessionID, { ...sessions.get(d.sessionID), agent: d.agent, parentID: d.parentID, work: bracketTag(d.title) || workFor(d.parentID) });
+      // so it can start on the work its lead was on, or the [TAG] the task begins with. An agent
+      // delegate gave its own worktree has no parent (the host would have put it back in the lead's
+      // checkout); delegate links it by metadata. It runs in the worktree's plugin instance, which has
+      // not seen the lead, so the link is read from here, and its work is the [TAG] of its task.
+      const parent = d.parentID || d.metadata?.mycoParent;
+      if (!parent || d.location?.directory !== ctx.location?.directory) return;
+      sessions.set(d.sessionID, { ...sessions.get(d.sessionID), agent: d.agent, parentID: parent, work: bracketTag(d.title) || workFor(parent) });
       return;
     }
     const mine = sessions.get(d.sessionID);

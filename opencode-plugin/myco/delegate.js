@@ -107,86 +107,102 @@ export async function registerDelegate(ctx, work) {
         let directory = ctx.location?.directory;
         let worktree;
         let base;
-        if (!sessionID) {
-          if (input.isolated) {
-            const projectID = ctx.location?.project?.id;
-            if (!projectID) fail('Cannot create a worktree: the host did not say which project this is.');
-            const made = await ctx.worktree.create({ projectID, name: `${input.agent.replace('/', '-')}-${Date.now().toString(36)}` });
-            worktree = made?.directory || made?.data?.directory;
-            if (!worktree) fail('The host created a worktree but did not say where.');
-            directory = worktree;
-            base = baseOf(worktree);
-            if (input.branch) {
-              try {
-                git(worktree, 'switch', '-c', input.branch);
-              } catch (e) {
-                await removeIfUntouched(ctx, worktree, base);
-                fail(`Could not start branch ${input.branch} in the worktree: ${String(e?.stderr || e?.message || e).trim()}`);
+        /** What cleanup needs to know about the worktree: where it is, where it started, and the branch delegate made in it. */
+        const iso = { ctx, dir: undefined, base: undefined, branch: undefined };
+        // Whatever goes wrong after the worktree exists, an untouched one is not left behind.
+        try {
+          if (!sessionID) {
+            if (input.isolated) {
+              const projectID = ctx.location?.project?.id;
+              if (!projectID) fail('Cannot create a worktree: the host did not say which project this is.');
+              const made = await ctx.worktree.create({ projectID, name: `${input.agent.replace('/', '-')}-${Date.now().toString(36)}` });
+              worktree = made?.directory || made?.data?.directory;
+              if (!worktree) fail('The host created a worktree but did not say where.');
+              directory = worktree;
+              base = baseOf(worktree);
+              iso.dir = worktree;
+              iso.base = base;
+              if (input.branch) {
+                try {
+                  git(worktree, 'switch', '-c', input.branch);
+                  iso.branch = input.branch;
+                } catch (e) {
+                  await removeIfUntouched(iso);
+                  fail(`Could not start branch ${input.branch} in the worktree: ${String(e?.stderr || e?.message || e).trim()}`);
+                }
               }
             }
+            // Isolated: no parentID (it would put the child back in the lead's checkout); linked by metadata.
+            const link = input.isolated ? { metadata: { mycoParent: parentID } } : { parentID };
+            const permissions = input.isolated ? [{ action: 'edit', resource: `${ctx.location.directory}/**`, effect: 'deny' }] : undefined;
+            const created = await ctx.session.create({ title: description, agent: input.agent, ...link, location: { directory }, ...(permissions ? { permissions } : {}) });
+            sessionID = created?.id || created?.data?.id;
+            if (!sessionID) fail('The host created the session but did not say which.');
+            // The agent's records carry the work its task is for, else the work its lead was on.
+            await work.link(sessionID, parentID, bracketTag(description) || (await work.current(parentID)));
           }
-          // Isolated: no parentID (it would put the child back in the lead's checkout); linked by metadata.
-          const link = input.isolated ? { metadata: { mycoParent: parentID } } : { parentID };
-          const permissions = input.isolated ? [{ action: 'edit', resource: `${ctx.location.directory}/**`, effect: 'deny' }] : undefined;
-          let created;
+
+          const stop = () => {
+            Promise.resolve(ctx.session.interrupt?.({ sessionID })).catch(() => {});
+          };
+          context?.signal?.addEventListener?.('abort', stop, { once: true });
+          let messages;
+          let session;
           try {
-            created = await ctx.session.create({ title: description, agent: input.agent, ...link, location: { directory }, ...(permissions ? { permissions } : {}) });
-          } catch (e) {
-            if (worktree) await removeIfUntouched(ctx, worktree, base);
-            throw e;
+            await ctx.session.prompt({ sessionID, text: input.prompt });
+            await ctx.session.wait({ sessionID });
+            messages = await ctx.session.context({ sessionID });
+            session = await ctx.session.get?.({ sessionID });
+          } finally {
+            context?.signal?.removeEventListener?.('abort', stop);
           }
-          sessionID = created?.id || created?.data?.id;
-          if (!sessionID) fail('The host created the session but did not say which.');
-          // The agent's records carry the work its task is for, else the work its lead was on.
-          await work.link(sessionID, parentID, bracketTag(description) || (await work.current(parentID)));
-        }
+          const outcome = (session?.data || session)?.outcome;
+          const failedRun = context?.signal?.aborted || outcome === 'interrupted' || outcome === 'failed';
+          // A run that ended badly keeps its worktree if it changed anything: that is partial work to look at.
+          const gone = worktree && failedRun && (await removeIfUntouched(iso));
+          const where = worktree ? (gone ? ' Its worktree was removed: nothing had changed.' : ` Its worktree is ${worktree}.`) : '';
+          if (context?.signal?.aborted || outcome === 'interrupted') {
+            stop();
+            fail(`Agent cancelled (sessionID: ${sessionID}).${where}`);
+          }
+          if (outcome === 'failed') fail(`Agent failed (sessionID: ${sessionID}): ${lastError(messages) || 'no reason given'}.${where}`);
 
-        const stop = () => {
-          Promise.resolve(ctx.session.interrupt?.({ sessionID })).catch(() => {});
-        };
-        context?.signal?.addEventListener?.('abort', stop, { once: true });
-        let messages;
-        let session;
-        try {
-          await ctx.session.prompt({ sessionID, text: input.prompt });
-          await ctx.session.wait({ sessionID });
-          messages = await ctx.session.context({ sessionID });
-          session = await ctx.session.get?.({ sessionID });
-        } finally {
-          context?.signal?.removeEventListener?.('abort', stop);
+          const report = finalText(messages) || '(the agent finished without a report)';
+          const kept = worktree ? !(await removeIfUntouched(iso)) : false;
+          const out = { sessionID, status: 'completed', output: report, ...(worktree ? { worktree: kept ? worktree : undefined, branch: kept ? input.branch : undefined, worktreeRemoved: !kept } : {}) };
+          const note = worktree ? (kept ? `\nworktree: ${worktree}${input.branch ? `\nbranch: ${input.branch}` : ''}` : '\nThe agent changed nothing, so its worktree was removed.') : '';
+          return {
+            output: out,
+            content: `<delegate sessionID="${sessionID}" state="completed">\n${report}\n</delegate>${note}`,
+            metadata: { sessionID, status: 'completed' },
+          };
+        } catch (e) {
+          if (iso.dir) await removeIfUntouched(iso);
+          throw e;
         }
-        const outcome = (session?.data || session)?.outcome;
-        const failedRun = context?.signal?.aborted || outcome === 'interrupted' || outcome === 'failed';
-        // A run that ended badly keeps its worktree if it changed anything: that is partial work to look at.
-        const gone = worktree && failedRun && (await removeIfUntouched(ctx, worktree, base));
-        const where = worktree ? (gone ? ' Its worktree was removed: nothing had changed.' : ` Its worktree is ${worktree}.`) : '';
-        if (context?.signal?.aborted || outcome === 'interrupted') {
-          stop();
-          fail(`Agent cancelled (sessionID: ${sessionID}).${where}`);
-        }
-        if (outcome === 'failed') fail(`Agent failed (sessionID: ${sessionID}): ${lastError(messages) || 'no reason given'}.${where}`);
-
-        const report = finalText(messages) || '(the agent finished without a report)';
-        const kept = worktree ? !(await removeIfUntouched(ctx, worktree, base)) : false;
-        const out = { sessionID, status: 'completed', output: report, ...(worktree ? { worktree: kept ? worktree : undefined, branch: kept ? input.branch : undefined, worktreeRemoved: !kept } : {}) };
-        const note = worktree ? (kept ? `\nworktree: ${worktree}${input.branch ? `\nbranch: ${input.branch}` : ''}` : '\nThe agent changed nothing, so its worktree was removed.') : '';
-        return {
-          output: out,
-          content: `<delegate sessionID="${sessionID}" state="completed">\n${report}\n</delegate>${note}`,
-          metadata: { sessionID, status: 'completed' },
-        };
       },
     });
   });
 }
 
-/** Removes an isolated worktree that holds nothing. @returns {Promise<boolean>} whether it was removed */
-async function removeIfUntouched(ctx, dir, base) {
-  if (!untouched(dir, base)) return false;
+/**
+ * Removes an isolated worktree that holds nothing, and the branch delegate made in it.
+ * @param {{ctx: any, dir?: string, base?: string, branch?: string}} iso
+ * @returns {Promise<boolean>} whether it was removed
+ */
+async function removeIfUntouched({ ctx, dir, base, branch }) {
+  if (!dir || !untouched(dir, base)) return false;
   try {
     await ctx.worktree.remove({ projectID: ctx.location.project.id, directory: dir, force: false });
-    return true;
   } catch {
     return false;
   }
+  if (branch) {
+    try {
+      git(ctx.location.directory, 'branch', '-D', branch);
+    } catch {
+      // The branch is gone already, or was never there.
+    }
+  }
+  return true;
 }
