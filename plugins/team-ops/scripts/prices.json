@@ -1,5 +1,5 @@
 {
-  "_comment": "USD per million tokens, Anthropic first-party API list prices. Used to turn recorded token counts into an API-equivalent cost estimate; a subscription bills differently. Update when prices change: the usage log stores tokens, so a corrected table reprices history. Matched by longest model-id prefix.",
+  "_comment": "USD per million tokens, Anthropic first-party API list prices. Used to turn recorded token counts into an API-equivalent cost estimate; a subscription bills differently. Update when prices change: the usage log stores tokens, so a corrected table reprices history. Matched by longest model-id prefix, after dropping a provider prefix (anthropic/) and writing version dots as dashes (5.5 as 5-5). claude-haiku-5-5 is the rate for contexts up to 100K tokens; above that it is five times higher, which this table does not model, so a long-context haiku run is under-estimated.",
   "as_of": "2026-09-25",
   "models": {
     "claude-fable-5-1":  { "input": 10, "output": 50, "cache_write_5m": 12.5, "cache_write_1h": 20, "cache_read": 0.25 },
@@ -13,6 +13,7 @@
     "claude-sonnet-5-5": { "input": 2,  "output": 10, "cache_write_5m": 2.5,  "cache_write_1h": 4,  "cache_read": 0.2 },
     "claude-sonnet-5":   { "input": 2,  "output": 10, "cache_write_5m": 2.5,  "cache_write_1h": 4,  "cache_read": 0.2 },
     "claude-sonnet-4-6": { "input": 3,  "output": 15, "cache_write_5m": 3.75, "cache_write_1h": 6,  "cache_read": 0.3 },
+    "claude-haiku-5-5": { "input": 0.1, "output": 0.5, "cache_write_5m": 0.125, "cache_write_1h": 0.2, "cache_read": 0.01 },
     "claude-haiku-4-5":  { "input": 1,  "output": 5,  "cache_write_5m": 1.25, "cache_write_1h": 2,  "cache_read": 0.1 }
   },
   "_speed_comment": "Fast mode bills every token class at this multiple of the standard rate.",

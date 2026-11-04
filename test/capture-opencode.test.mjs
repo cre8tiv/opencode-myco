@@ -22,7 +22,7 @@ const COACH = 'team-ops/agent-coach';
  * Installs the teams and registers capture on a stand-in plugin context. HOME is the sandbox for the
  * test, because the event stream lives under it.
  */
-async function capture(t, { root, withGuards = false, noSessionHook = false } = {}) {
+async function capture(t, { root, withGuards = false, noSessionHook = false, infos = {} } = {}) {
   const sb = sandbox(t);
   const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE, ENDPOINT: process.env.TEAM_OPS_OTLP_ENDPOINT };
   process.env.HOME = sb.home;
@@ -49,7 +49,14 @@ async function capture(t, { root, withGuards = false, noSessionHook = false } = 
   const ctx = {
     location: { directory: sb.project },
     tool: { hook: async (name, fn) => { tool[name] = fn; } },
-    session: noSessionHook ? {} : { hook: async (name, fn) => { session[name] = fn; } },
+    session: noSessionHook ? {} : {
+      hook: async (name, fn) => { session[name] = fn; },
+      // What the host knows of a session by id, for one this instance never saw created.
+      get: async ({ sessionID }) => {
+        if (!(sessionID in infos)) throw new Error('no such session');
+        return { data: infos[sessionID] };
+      },
+    },
     event: {
       subscribe: (opts) => {
         signal = opts.signal;
@@ -346,6 +353,28 @@ describe('sessions and events', () => {
     assert.equal(rec.event, 'PostToolUseFailure');
     assert.equal(rec.work, 'CLOUD-9');
     assert.equal((await c.events(0)).some((r) => r.event === 'SessionEnd'), false);
+  });
+
+  test('an isolated agent whose instance started after its session was created is still known to be dispatched', async (t) => {
+    // The instance serving a worktree starts when the session first runs, so session.created is never seen:
+    // the session's own record, asked for from the host, names the lead and the task.
+    const c = await capture(t, { infos: { ses_iso: { agent: IC, title: '[CLOUD-9] build', metadata: { mycoParent: 'ses_lead' } } } });
+    serve(c, 'ses_iso', IC);
+    c.send({ type: 'session.execution.succeeded', data: { sessionID: 'ses_iso' } });
+    c.after({ tool: 'shell', agent: IC, sessionID: 'ses_iso', input: { command: 'make' }, status: 'error', error: { message: 'boom' } });
+    const [rec] = await c.events();
+    await c.quiet();
+    assert.equal(rec.event, 'PostToolUseFailure');
+    assert.equal(rec.work, 'CLOUD-9');
+    assert.equal((await c.events(0)).some((r) => r.event === 'SessionEnd'), false);
+  });
+
+  test('a lead the host knows no parent of still ends with a SessionEnd', async (t) => {
+    const c = await capture(t, { infos: { ses_lead: { agent: LEAD } } });
+    serve(c, 'ses_lead', LEAD);
+    c.send({ type: 'session.execution.succeeded', data: { sessionID: 'ses_lead' } });
+    const [rec] = await c.events();
+    assert.equal(rec.event, 'SessionEnd');
   });
 
   test('a dispatched agent starts on its lead\'s work, or on the [TAG] its task begins with', async (t) => {

@@ -101,6 +101,12 @@ describe('pricing', () => {
     assert.equal(costOf(million({ model: 'claude-opus-5-5[1m]', input: 1e6 })), 4);
   });
 
+  test('provider-prefixed ids with dotted versions, as OpenRouter names them, match', () => {
+    assert.equal(costOf(million({ model: 'anthropic/claude-opus-5.5', input: 1e6 })), 4);
+    assert.equal(costOf(million({ model: 'anthropic/claude-sonnet-5.5', output: 1e6 })), 10);
+    assert.equal(costOf(million({ model: 'anthropic/claude-haiku-5.5', input: 1e6 })), 0.1);
+  });
+
   test('a model with no price is unpriced, never free', () => {
     assert.equal(costOf(million({ model: 'claude-future-9', input: 1e6 })), null);
   });

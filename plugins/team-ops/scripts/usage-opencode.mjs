@@ -159,10 +159,13 @@ export function execOpencode(args, cwd) {
   return { status: res.status ?? (missing ? 127 : null), stdout: res.stdout || '', stderr: res.stderr || (res.error && !missing ? res.error.message : '') };
 }
 
-/** A GET against OpenCode's API, parsed. */
+/**
+ * A GET against OpenCode's API, parsed. Query parameters go in the path: `opencode api --param` is for path
+ * templates, and a filter passed that way is silently ignored (a project filter returned every project's sessions).
+ */
 function get(exec, cwd, path, params = {}) {
-  const flags = Object.entries(params).flatMap(([k, v]) => ['--param', `${k}=${v}`]);
-  const res = exec(['api', '--standalone', ...flags, 'GET', path], cwd);
+  const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString();
+  const res = exec(['api', '--standalone', 'GET', query ? `${path}?${query}` : path], cwd);
   if (res.status === 127) throw new Error('`opencode` was not found on PATH');
   if (res.status !== 0) throw new Error(`opencode api GET ${path} failed: ${(res.stderr || res.stdout).trim().slice(0, 200) || `exit ${res.status}`}`);
   try {

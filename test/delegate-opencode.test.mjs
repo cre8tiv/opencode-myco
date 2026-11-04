@@ -65,6 +65,20 @@ async function setup(t, { report = 'done', outcome, error, onPrompt, createFails
   return { sb, ctx, calls, defs, work, run };
 }
 
+/**
+ * The host rejects a result whose `output` the tool didn't declare a schema for, as a defect after the agent has
+ * run (seen in a live run), and encodes it against the schema when it did: so the output must match.
+ */
+function assertConforms(output, schema) {
+  assert.ok(schema, 'the tool declares an output schema');
+  for (const k of schema.required) assert.ok(k in output, `output has ${k}`);
+  for (const [k, v] of Object.entries(output)) {
+    assert.ok(k in schema.properties, `${k} is declared`);
+    assert.notEqual(v, undefined, `${k} is not undefined`);
+    assert.equal(typeof v, schema.properties[k].type, `${k} has its declared type`);
+  }
+}
+
 describe('registration', () => {
   test('is a JSON-schema tool the model sees directly, with the arguments a lead needs', async (t) => {
     const { defs } = await setup(t);
@@ -84,13 +98,14 @@ describe('registration', () => {
 
 describe('a shared-checkout agent', () => {
   test('is a child of the lead, in the lead\'s checkout, and its report comes back with its session', async (t) => {
-    const { sb, calls, run } = await setup(t, { report: 'reviewed it' });
+    const { sb, calls, run, defs } = await setup(t, { report: 'reviewed it' });
     const r = await run({ agent: IC, description: '[CLOUD-1] review', prompt: 'look at the diff' });
     assert.deepEqual(calls.created[0], { title: '[CLOUD-1] review', agent: IC, parentID: 'ses_lead', location: { directory: sb.project } });
     assert.equal(calls.prompts[0].text, 'look at the diff');
     assert.match(r.content, /<delegate sessionID="ses_child_1" state="completed">\nreviewed it\n<\/delegate>/);
     assert.deepEqual(r.metadata, { sessionID: 'ses_child_1', status: 'completed' });
     assert.equal(r.output.output, 'reviewed it');
+    assertConforms(r.output, defs.delegate.output);
     assert.equal(calls.worktrees.length, 0);
   });
 
@@ -114,7 +129,7 @@ describe('a shared-checkout agent', () => {
 
 describe('an isolated agent', () => {
   test('gets a worktree, no parentID (it would send the child back to the lead\'s checkout), and a deny on the lead\'s checkout', async (t) => {
-    const { sb, calls, run } = await setup(t);
+    const { sb, calls, run, defs } = await setup(t);
     const r = await run({ agent: IC, description: '[CLOUD-1] build', prompt: 'p', isolated: true });
     const created = calls.created[0];
     assert.equal('parentID' in created, false);
@@ -123,11 +138,12 @@ describe('an isolated agent', () => {
     assert.deepEqual(created.permissions, [{ action: 'edit', resource: `${sb.project}/**`, effect: 'deny' }]);
     assert.equal(calls.worktrees[0].projectID, 'proj-1');
     assert.equal(r.output.worktreeRemoved, true, 'nothing changed, so nothing is kept');
+    assertConforms(r.output, defs.delegate.output);
     assert.match(r.content, /worktree was removed/);
   });
 
   test('a worktree with changes is kept and reported with its branch', async (t) => {
-    const { calls, run } = await setup(t, {
+    const { calls, run, defs } = await setup(t, {
       onPrompt: (input, c) => writeFileSync(join(c.created[0].location.directory, 'new.txt'), 'work'),
     });
     const r = await run({ agent: IC, description: '[CLOUD-1] build', prompt: 'p', isolated: true, branch: 'feature/cloud-1' });
@@ -137,7 +153,33 @@ describe('an isolated agent', () => {
     assert.equal(calls.removed.length, 0);
     assert.equal(r.output.worktree, dir);
     assert.equal(r.output.branch, 'feature/cloud-1');
+    assertConforms(r.output, defs.delegate.output);
     assert.match(r.content, new RegExp(`worktree: ${dir.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')}\\nbranch: feature/cloud-1`));
+  });
+
+  test('a detached worktree whose commit a branch already holds leaves nothing to keep', async (t) => {
+    // A reviewer checks out the commit it is reviewing: HEAD moves, but the commit is on a branch.
+    const { sb, calls, run, defs } = await setup(t, {
+      onPrompt: (_i, c) => {
+        const dir = c.created[0].location.directory;
+        git(dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'work');
+        git(dir, 'branch', 'feature/kept');
+      },
+    });
+    const r = await run({ agent: 'engineering-team/code-reviewer', description: 'x', prompt: 'p', isolated: true });
+    assert.equal(r.output.worktreeRemoved, true);
+    assert.equal(calls.removed.length, 1);
+    assertConforms(r.output, defs.delegate.output);
+    assert.match(git(sb.project, 'branch', '--list', 'feature/kept'), /feature\/kept/, 'the branch, and the work on it, stays');
+  });
+
+  test('a detached commit no branch holds is kept: removing the worktree would lose it', async (t) => {
+    const { calls, run } = await setup(t, {
+      onPrompt: (_i, c) => git(c.created[0].location.directory, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'orphan'),
+    });
+    const r = await run({ agent: IC, description: 'x', prompt: 'p', isolated: true });
+    assert.equal(r.output.worktreeRemoved, false);
+    assert.equal(calls.removed.length, 0);
   });
 
   test('a branch that cannot be created fails the call and leaves no empty worktree behind', async (t) => {

@@ -77,7 +77,8 @@ function prices() {
  */
 export function costOf(r) {
   const { models, speed_multiplier: speedMult = {} } = prices();
-  const id = String(r.model).replace(/\[.*\]$/, '');
+  // OpenRouter-style ids carry a provider (anthropic/claude-haiku-5.5) and write versions with dots.
+  const id = String(r.model).replace(/\[.*\]$/, '').replace(/^.*\//, '').replace(/\./g, '-');
   const key = Object.keys(models).filter((k) => id.startsWith(k)).sort((a, b) => b.length - a.length)[0];
   if (!key) return null;
   const p = models[key];
