@@ -45,7 +45,7 @@ This is a port in progress. Read this before relying on a part of it.
 - **Published review pages and Claude Design.** Review pages are claude.ai artifacts and Claude Design is a claude.ai tool; neither has an OpenCode equivalent. `publish-review` renders a package to a standalone HTML file instead, with no comment threads, and prototypes are HTML files.
 - **Evals** (`evals/`) run on the Claude Code eval harness only.
 
-`plugins/team-ops/telemetry/README.md` and the example stack are shared with upstream and were written for the Claude Code version; the OTLP format they describe is unchanged, but the surrounding instructions mention Claude Code.
+The telemetry guide (`plugins/team-ops/telemetry/README.md`) is rewritten for OpenCode. The example stack's Grafana dashboard is shared with upstream and still has per-person panels built on Claude Code's own metrics, which stay empty here.
 
 ## Requirements
 
@@ -285,7 +285,7 @@ team-ops writes to a stream under `~/.claude/ops/<stream>/`, named by `stream:` 
 - **Usage and cost**: nothing is recorded as it happens. `cost-report` (`node "$MYCO_ROOT/team-ops/scripts/cost.mjs"`) asks OpenCode for the sessions of this project that changed since they were last recorded, and reads the tokens each response used, by agent and model. Cost is an estimate at API list prices, by unit of work; a model with no list price (a local one) shows as `unpriced`. It needs the `opencode` command on your `PATH`, and only counts team agents.
 - **Work tags**: leads name a design package round or an engineering phase with the `start_work` tool, and the tech lead prefixes each dispatched agent's task with its ticket (`[CLOUD-123] implement retry`). Records carry the work, so activity can be joined to what it was for.
 
-If you set `TEAM_OPS_OTLP_ENDPOINT`, events and friction are also exported as OpenTelemetry; see [Team telemetry](plugins/team-ops/telemetry/README.md). The export code is shared with the Claude Code version and is unit-tested, but it hasn't been checked end to end against OpenCode, and that guide was written for the Claude Code version. 
+If you set `TEAM_OPS_OTLP_ENDPOINT`, events and friction are also exported as OpenTelemetry; see [Team telemetry](plugins/team-ops/telemetry/README.md). Events are sent as they happen; cost is sent when a cost report runs (the guide says how to schedule one). Checked end to end against a local OTLP collector: a lead run's events arrived from the plugin, and the cost metrics from `cost.mjs`, with the work, agent and model attributes the guide documents. Not checked against a real backend such as Grafana or Datadog. 
 
 ## Working with the engineering team
 
