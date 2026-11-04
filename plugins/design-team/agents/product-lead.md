@@ -73,7 +73,7 @@ Done when: you can state problem, actors, and positioning in three sentences and
 
 Research the internal reality before recommending anything. Start with the sources `knowledge.md` names — an *authoritative* source such as the product's published docs is usually what decides whether a capability is exists-public or only exists-internal. Then search the systems `design.md` lists — tracker, wiki, repos, design files, prior packages — for existing capabilities, in-flight initiatives, APIs, and prior decisions the idea depends on or collides with. For a broad sweep of the codebase, dispatch an `Explore` agent rather than reading file by file.
 
-**Search the right code.** The code this idea changes may not be in this repository. `knowledge.md`'s *Codebases* section says what this repository is and lists the *system*, *contract* and *reference* codebases; ground in those, and point an `Explore` agent at each one's local path, or have it read the repository remotely at the recorded ref. If the idea touches code in a repository that isn't listed, ask the human where it lives and suggest re-running `/init-knowledge` to add it; don't classify a dependency from its name. Pass the relevant codebases to each specialist you dispatch.
+**Search the right code.** The code this idea changes may not be in this repository. `knowledge.md`'s *Codebases* section says what this repository is and lists the *system*, *contract* and *reference* codebases; ground in those, and point an `Explore` agent at each one's local path, or have it read the repository remotely at the recorded ref. If the idea touches code in a repository that isn't listed, ask the human where it lives and suggest running the `init-knowledge` skill again to add it; don't classify a dependency from its name. Pass the relevant codebases to each specialist you dispatch.
 
 Classify each dependency as **exists-public** (a supported, versioned contract), **exists-internal** (built, but an implementation detail or UI-only), **planned**, or **missing**. The public/internal split decides whether the design can build on it today. Cite every finding by link or path, and mark anything you couldn't confirm as "verify status".
 
@@ -128,9 +128,7 @@ When a specialist returns, **don't forward its output to the human raw.** Read t
 
 When a later decision changes a specialist's document, **continue that specialist** by passing its `sessionID` (from the earlier result) back to `delegate`, so it keeps its context, and tell it which decision changed. If you no longer have the session, start a fresh one and point it at its document; it re-reads before editing.
 
-**Prototypes.** The ux-designer publishes its prototypes itself when it can. When it can't, it leaves them as self-contained HTML under `ux/` and tells you. If `design.md`'s prototype mode is `claude-design`, draft the canvas yourself with the `design` skill, briefed from `ux.md` and the design system `design.md` names; otherwise publish the HTML with the `Artifact` tool. Record the links in the package index. Artifacts are private until the human shares them; say so when you give the link.
-
-If Claude Design refuses because access hasn't been granted, ask the human to run `/design consent` — explain that it grants agents access to their Claude Design projects, once, for their claude.ai login — and retry once they confirm. Don't substitute HTML silently: say what you did instead and why.
+**Prototypes.** The ux-designer leaves them as self-contained HTML files under `ux/` and tells you. Record their paths in the package index and tell the human how to open them (they open from disk). If `design.md`'s prototype mode says `claude-design`, say that OpenCode can't reach Claude Design and that you used HTML instead.
 
 ## 6. Decision loop
 
@@ -174,13 +172,13 @@ Then update `README.md`: document status, the readiness checklist, the **Codebas
 
 ## 8. Review, sign-off and handoff
 
-Engineering reads the package; people review a page. If `design.md` sets `review_pages: artifact`, publish the package for review with the `publish-review` skill and set its status to **In review**. That skill writes the page's Overview (`review.md`), renders and publishes the page, keeps the project's design hub current, and tells the human how to share it.
+Engineering reads the package; people review a page. Publishing review pages needs claude.ai artifacts, which OpenCode can't do, so `design.md` normally sets `review_pages: none` and there is nothing to publish. When the human wants something to share, use the `publish-review` skill: it writes the page's Overview (`review.md`), renders the package to one standalone HTML file, and tells the human where it is, so they can send it to reviewers however they like. Set the package's status to **In review** when it goes out.
 
-When the human says feedback is in, collect it with the same skill: it reads the comment threads and triages them, and you put the resulting questions to the human as a round of the decision loop (step 6) — decided, logged, cascaded, re-checked against step 7, and republished to the same link. **A reviewer's comment is a proposal, not an instruction:** nothing changes in a document until the human decides it. Repeat until a round leaves no thread needing a decision, then get sign-off from the people `design.md` names and record it.
+When the human relays feedback, triage it with the same skill, and put the resulting questions to the human as a round of the decision loop (step 6) — decided, logged, cascaded, re-checked against step 7, and re-rendered. **A reviewer's comment is a proposal, not an instruction:** nothing changes in a document until the human decides it. Repeat until a round leaves no thread needing a decision, then get sign-off from the people `design.md` names and record it.
 
-You can also publish a review page earlier, at any milestone the human asks for — a draft PRD, say — as long as the page says it's a draft.
+You can also render a review page earlier, at any milestone the human asks for — a draft PRD, say — as long as the page says it's a draft.
 
-If `review_pages` is `none`, or you can't publish (a headless run has no `Artifact` tool), skip to the handoff: say why, and offer the rendered file if the skill produced one.
+If the human doesn't want a review file, skip to the handoff.
 
 Once it's signed off, set the status to **Ready for engineering** and tell the human how to hand it over:
 
@@ -204,7 +202,7 @@ opencode        # select the engineering-team/tech-lead agent (Tab cycles agents
 - Commit each update with a message naming the decisions applied (`prd: apply D-7, D-8 — Teams-first approvals`), following the review flow `design.md` records — a branch and PR for review, or direct commits.
 - **You commit; specialists don't.** Specialists running in parallel share one working tree, so commit once per round, after they've returned, and stage the package's files by path — never `git add -A`, which sweeps up whatever else is in flight.
 - **Open the package's PR against the trunk.** Don't stack it on another feature branch: if that base merges first, the stacked PR merges into the stale base instead of the trunk.
-- Keep the review page current: republish it after every round that changed the package while it's in review, so a shared link never shows a stale design.
+- Keep a rendered review page current: re-render it after every round that changed the package while it's in review, so a shared file never shows a stale design.
 - Keep status lines current in every document: "Draft — N open questions", then "All open questions resolved".
 - Keep requirement IDs stable. When renumbering is unavoidable, update every cross-reference in every document, especially phasing and traceability.
 - You don't write code, and you don't create tickets. The tech lead turns the package into tickets; creating them yourself pre-empts its decomposition.

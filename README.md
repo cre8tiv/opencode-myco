@@ -37,16 +37,15 @@ This is a port in progress. Read this before relying on a part of it.
 **Installed, but not yet run end to end under OpenCode:**
 
 - The leads' whole workflows: design to a signed-off package; tech lead through review and QA to a merge handoff.
-- The setup skills `init-team`, `init-design` and `init-knowledge`. Parts of their text still describe Claude Code (connectors in claude.ai, `/mcp`, Claude Design).
+- The setup skills `init-team`, `init-design` and `init-knowledge`, and `agent-coach` reading OpenCode's own session records. Their text now describes OpenCode (`opencode mcp`, `opencode.json`), but none has been run through a real setup or analysis.
 
 **Not ported yet:**
 
 - **Delegation has not been run end to end with a model.** The leads' prompts now dispatch with `delegate` (the tech lead isolates every IC and QA run in its own worktree; the product lead leaves specialists in the shared tree), continue an agent by its `sessionID`, and no longer mention Claude Code's agent, message and task tools. What is checked: the host-side behavior of `delegate` against a real OpenCode with no model, and the stand-in tests. Not yet seen: a lead choosing the tool, an agent working in its worktree, abort on a live server. Until you have watched one run, treat parallel ICs on overlapping files with care.
-- **Review pages** (`publish-review`) are claude.ai artifacts, and Claude Design prototypes have no OpenCode equivalent.
-- **`agent-coach`** reads the event stream, friction reports and your team profiles; its transcript-based sources aren't ported.
+- **Published review pages and Claude Design.** Review pages are claude.ai artifacts and Claude Design is a claude.ai tool; neither has an OpenCode equivalent. `publish-review` renders a package to a standalone HTML file instead, with no comment threads, and prototypes are HTML files.
 - **Evals** (`evals/`) run on the Claude Code eval harness only.
 
-The per-team READMEs under `plugins/` have not been updated yet and still describe the Claude Code version.
+`plugins/team-ops/telemetry/README.md` and the example stack are shared with upstream and were written for the Claude Code version; the OTLP format they describe is unchanged, but the surrounding instructions mention Claude Code.
 
 ## Requirements
 
@@ -360,7 +359,7 @@ Start with the doctor. Most of what follows it reports directly.
 
 **Tracker transitions fail silently.** The MCP tool prefix recorded in `project.md` doesn't match the server actually available in your session. Check the real prefix and correct the profile.
 
-**An IC's changes land in the wrong place.** ICs and QA get their own worktree only when the lead delegates with `isolated: true`; a lead that used `subagent` instead put the agent in the shared checkout. Check the lead's call, and that the `delegate` feature is active in `myco doctor`.
+**An IC's changes land in the wrong place.** ICs and QA get their own worktree only when the lead delegates with `isolated: true`; a lead that used `subagent` instead put the agent in the shared checkout. Check the lead's call, and that the `delegate` feature is active in the [doctor](#myco-doctor)'s output.
 
 **A reinstall reverted a change I made to an agent.** Expected: agent definitions are installed content. Project-specific behavior belongs in `.claude/team/project.md`; if the change is general, send it upstream.
 

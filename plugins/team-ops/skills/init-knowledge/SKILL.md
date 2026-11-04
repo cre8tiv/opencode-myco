@@ -1,6 +1,6 @@
 ---
 name: init-knowledge
-description: Record the documentation, knowledge sources and codebases every agent team in this project should consult — product docs, API references, internal engineering docs, knowledge graphs, runbooks, and the other repositories the work changes, builds against or imitates — with what each answers, which roles use it, how authoritative it is, and how to reach it. Detects every connected MCP server (including connectors that exist but aren't authorized) and every related repository (workspaces, submodules, sibling clones, internal packages, repos the docs name), asks what each is for, and writes .claude/team/knowledge.md. Run by /init-design and /init-team as part of setup; run it directly to refresh the list when sources or repositories change.
+description: Record the documentation, knowledge sources and codebases every agent team in this project should consult — product docs, API references, internal engineering docs, knowledge graphs, runbooks, and the other repositories the work changes, builds against or imitates — with what each answers, which roles use it, how authoritative it is, and how to reach it. Detects every connected MCP server (including connectors that exist but aren't authorized) and every related repository (workspaces, submodules, sibling clones, internal packages, repos the docs name), asks what each is for, and writes .claude/team/knowledge.md. Run by the init-design and init-team skills as part of setup; run it directly to refresh the list when sources or repositories change.
 ---
 
 # init-knowledge
@@ -11,9 +11,9 @@ If `.claude/team/knowledge.md` already exists — the other team's setup may hav
 
 ## 1. Detect
 
-- **Every MCP server in this session.** Load the deferred tool list with `ToolSearch` and group the tools by server (the `mcp__<server>__` prefix). Don't stop at the servers you recognize by type: a server named after the product, a team, or an internal system is often the most valuable source in the project, and it's exactly the one a fixed checklist misses. For each server, read its tool names and descriptions to work out what it serves.
-- **Connectors that exist but aren't authorized.** A server whose only tools are `authenticate` and `complete_authentication` (or similar) is configured but not authorized for this person. It's invisible to every agent until someone notices. Flag each one.
-- **Knowledge reached another way.** Session context that names a knowledge tool or CLI (a session-start note describing an internal knowledge base, say); documentation URLs in the repo's `README`, `CLAUDE.md`, `AGENTS.md` or `CONTRIBUTING.md`; docs directories in the repo; an `llms.txt` on a docs site. A docs site with no MCP server is still reachable by URL.
+- **Every MCP server configured for this project.** `opencode mcp list` shows each configured server and whether it is connected; group the tools you can see by server (a server's tools carry its name as a prefix). Don't stop at the servers you recognize by type: a server named after the product, a team, or an internal system is often the most valuable source in the project, and it's exactly the one a fixed checklist misses. For each server, read its tool names and descriptions to work out what it serves.
+- **Servers that are configured but not authorized.** `opencode mcp list` marks a remote server that needs OAuth sign-in as not authenticated. It's invisible to every agent until someone notices. Flag each one.
+- **Knowledge reached another way.** Session context that names a knowledge tool or CLI (a session-start note describing an internal knowledge base, say); documentation URLs in the repo's `README`, `AGENTS.md`, `CLAUDE.md` or `CONTRIBUTING.md`; docs directories in the repo; an `llms.txt` on a docs site. A docs site with no MCP server is still reachable by URL.
 - **What's already recorded.** Trackers, wikis and design tools named in `.claude/team/project.md` or `design.md` are configured there for their operational role. List them here too only if agents should also *consult* them for answers — a wiki usually should.
 
 Leave out servers that do things rather than answer things — browser automation, chat, calendars — unless the user says otherwise.
@@ -28,7 +28,7 @@ Leave out servers that do things rather than answer things — browser automatio
   - sibling git repositories in this repository's parent directory;
   - internal packages it depends on (an organization scope like `@org/*`, a private registry, a `replace` directive, a project reference) and the repositories they come from;
   - images built from other repositories in `docker-compose` files or deployment manifests;
-  - repositories named in `README`, `CLAUDE.md`, `AGENTS.md` or `CONTRIBUTING.md`.
+  - repositories named in `README`, `AGENTS.md`, `CLAUDE.md` or `CONTRIBUTING.md`.
 - **Candidates from the hosting service.** If `gh` is authenticated or a GitHub or Azure DevOps MCP server is connected, list the organization's repositories so you can offer names in step 2 rather than asking the user to type them. Don't record the whole organization.
 
 For each candidate, note its remote URL, a local clone if there is one (as a path relative to this repository's root — the file is committed, and an absolute path is right for one teammate only), and its default branch.
@@ -54,15 +54,15 @@ Start with the question everything else hangs on: **is the code this work change
 
 Then ask whether any codebase is missing — "a new engineer would also need to read…".
 
-If a codebase that matters has a local clone outside this repository, tell the user that agents can only read it once it's in the session's allowed directories, and offer to add it to `additionalDirectories` in `.claude/settings.local.json` (per person, since clone locations differ). Don't edit settings without their yes. A codebase without a local clone is still readable remotely through `gh` or a hosting MCP server, more slowly.
+If a codebase that matters has a local clone outside this repository, tell the user that agents can only read it without a prompt once OpenCode's `external_directory` permission allows its path, and offer to add an allow rule for it to their own `opencode.json` (per person, since clone locations differ; not the project's committed config). Don't edit settings without their yes. A codebase without a local clone is still readable remotely through `gh` or a hosting MCP server, more slowly.
 
-### Unauthorized connectors
+### Unauthorized servers
 
-For each connector that exists but isn't authorized, tell the user plainly and ask them to authorize it:
+For each server that is configured but isn't authorized, tell the user plainly and ask them to authorize it:
 
-> `<server>` is configured but not authorized, so no agent can use it. If it's worth using, authorize it in claude.ai **Settings → Connectors** (or via `/mcp`), then tell me and I'll check it works. Authorization is per person, so each teammate who runs the agents does this once.
+> `<server>` is configured but not authorized, so no agent can use it. If it's worth using, run `opencode mcp auth <server>` in a terminal, then tell me and I'll check it works. Authorization is per person, so each teammate who runs the agents does this once.
 
-You can't authorize on their behalf. Re-check once they confirm. Whatever they decide, record the connector — under **Needs authorization** if they skip it, so the gap stays visible.
+You can't authorize on their behalf. Re-check once they confirm. Whatever they decide, record the server — under **Needs authorization** if they skip it, so the gap stays visible.
 
 ## 3. Write
 
@@ -82,4 +82,4 @@ For each codebase, confirm it can be read at the recorded ref: list the local pa
 
 ## 5. Report
 
-In two or three lines: how many sources and codebases you recorded, which need authorizing or access and by whom, and what's missing. If you were invoked by `/init-design` or `/init-team`, return to that skill's next step rather than ending the conversation. Remind the user to commit `.claude/team/knowledge.md`.
+In two or three lines: how many sources and codebases you recorded, which need authorizing or access and by whom, and what's missing. If you were invoked by the `init-design` or `init-team` skill, return to that skill's next step rather than ending the conversation. Remind the user to commit `.claude/team/knowledge.md`.
