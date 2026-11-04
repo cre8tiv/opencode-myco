@@ -45,12 +45,17 @@ const r = (level, area, message, fix) => ({ level, area, message, ...(fix ? { fi
 
 const REINSTALL = 'Reinstall: node scripts/install.mjs --global (from the myco checkout).';
 
-/** @param {string} p @returns {any | null} */
-function readJson(p) {
+/**
+ * A JSON file, told apart three ways: absent, present but unreadable, or its value. Treating an unreadable
+ * file as an absent one reports a corrupt file as though it had never been written.
+ * @param {string} p @returns {{missing: true} | {error: string} | {value: any}}
+ */
+function readJsonFile(p) {
+  if (!existsSync(p)) return { missing: true };
   try {
-    return JSON.parse(readFileSync(p, 'utf8'));
-  } catch {
-    return null;
+    return { value: JSON.parse(readFileSync(p, 'utf8')) };
+  } catch (e) {
+    return { error: e.message };
   }
 }
 
@@ -66,9 +71,12 @@ const frontmatterOf = (file) => (readFileSync(file, 'utf8').match(/^---\n([\s\S]
 export function checkInstall({ root }) {
   const config = join(root, '..');
   const out = [];
-  const install = readJson(join(root, 'install.json'));
+  const record = readJsonFile(join(root, 'install.json'));
+  const install = 'value' in record ? record.value : null;
   if (install) {
     out.push(r('ok', 'install', `${Object.entries(install.teams || {}).map(([t, v]) => `${t} ${v}`).join(', ')}; installed ${String(install.installedAt).slice(0, 10)}`));
+  } else if ('error' in record) {
+    out.push(r('warn', 'install', `install.json is not valid JSON (${record.error}), so what the install should contain is not known`, REINSTALL));
   } else {
     out.push(r('warn', 'install', 'no install.json: this was installed by an older installer, so what it should contain is not known', REINSTALL));
   }
@@ -138,14 +146,20 @@ export function checkProject({ cwd, root }) {
  * @returns {Result[]}
  */
 export function checkModelMapping({ root, catalog }) {
+  const read = readJsonFile(join(root, 'models.json'));
+  if ('error' in read) {
+    return [r('fail', 'models', `models.json is not valid JSON, so your model mapping is being ignored: ${read.error}`, 'Fix or delete it, or run the init-models skill.')];
+  }
   try {
-    const file = join(root, 'models.json');
-    const models = checkModels(existsSync(file) ? readJson(file) : {});
-    const list = warnings({ models, agentsDir: join(root, '..', 'agents'), catalog });
+    const models = checkModels('value' in read ? read.value : {});
     const mapped = Object.keys(models.tiers).length + Object.keys(models.agents).length;
-    return list.length
-      ? list.map((w) => r('warn', 'models', w, 'Run the init-models skill, or models.mjs set.'))
-      : [r('ok', 'models', mapped ? 'mapping has no problems' : 'no mapping: every agent uses your default model')];
+    // Nothing mapped is a choice, not a fault: every agent runs on your default model. Say what that
+    // means, once, without a warning that every fresh install would carry.
+    if (!mapped) {
+      return [r('info', 'models', 'no mapping: every agent uses your default model, so reviewers and QA share a model with the ICs. Map the reasoning tier to a different model to keep review independent (the init-models skill).')];
+    }
+    const list = warnings({ models, agentsDir: join(root, '..', 'agents'), catalog });
+    return list.length ? list.map((w) => r('warn', 'models', w, 'Run the init-models skill, or models.mjs set.')) : [r('ok', 'models', 'mapping has no problems')];
   } catch (e) {
     return [r('fail', 'models', `models.json is not valid: ${e.message}`, 'Fix it, or run the init-models skill.')];
   }

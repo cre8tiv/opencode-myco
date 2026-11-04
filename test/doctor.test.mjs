@@ -56,6 +56,15 @@ describe('the files', () => {
     assert.match(find(out, 'agents').fix, /Reinstall/);
   });
 
+  test('an install.json that is corrupt is not described as a missing one', (t) => {
+    const { root } = installed(t);
+    writeFileSync(join(root, 'install.json'), '{"installedAt":');
+    const out = find(checkInstall({ root }), 'install');
+    assert.equal(out.level, 'warn');
+    assert.match(out.message, /install\.json is not valid JSON/);
+    assert.doesNotMatch(out.message, /older installer/);
+  });
+
   test('an install with no install.json is a warning, not a failure', (t) => {
     const { root } = installed(t);
     rmSync(join(root, 'install.json'));
@@ -132,16 +141,46 @@ describe('the project', () => {
 });
 
 describe('the model mapping', () => {
-  test('no mapping, a good one, and a broken file', (t) => {
-    const { root, config } = installed(t);
-    assert.match(find(checkModelMapping({ root, catalog: null }), 'models').message, /same model as the ICs/);
+  test('no mapping is information, not a warning: it is a choice, and every fresh install has it', (t) => {
+    const { root } = installed(t);
+    const out = checkModelMapping({ root, catalog: null });
+    assert.deepEqual(levels(out), ['info']);
+    assert.match(out[0].message, /no mapping: every agent uses your default model, so reviewers and QA share a model with the ICs/);
+    // A file that holds nothing useful is the same as none.
+    writeFileSync(join(root, 'models.json'), 'null');
+    assert.deepEqual(levels(checkModelMapping({ root, catalog: null })), ['info']);
+    writeFileSync(join(root, 'models.json'), '{}');
+    assert.deepEqual(levels(checkModelMapping({ root, catalog: null })), ['info']);
+  });
+
+  test('a good mapping has no problems, and one that puts reviewers with the ICs is a warning', (t) => {
+    const { root } = installed(t);
     writeFileSync(join(root, 'models.json'), JSON.stringify({ tiers: { worker: 'p/a', reasoning: 'p/b' } }));
     assert.deepEqual(levels(checkModelMapping({ root, catalog: null })), ['ok']);
+    writeFileSync(join(root, 'models.json'), JSON.stringify({ tiers: { worker: 'p/a', reasoning: 'p/a' } }));
+    const out = checkModelMapping({ root, catalog: null });
+    assert.deepEqual(levels(out), ['warn']);
+    assert.match(out[0].message, /same model as the ICs \(p\/a\)/);
+  });
+
+  test('a models.json that is corrupt is a failure that says the mapping is being ignored, not "no mapping"', (t) => {
+    const { root } = installed(t);
+    // Truncated, as a half-written or hand-edited file might be.
+    writeFileSync(join(root, 'models.json'), '{"tiers":{"lead":"p/a"');
+    const out = checkModelMapping({ root, catalog: null });
+    assert.deepEqual(levels(out), ['fail']);
+    assert.match(out[0].message, /not valid JSON, so your model mapping is being ignored/);
+    assert.match(out[0].fix, /init-models/);
+  });
+
+  test('valid JSON that is not a valid mapping is a different failure', (t) => {
+    const { root } = installed(t);
     writeFileSync(join(root, 'models.json'), '{"tiers":{"lead":"not-a-model"}}');
     const bad = checkModelMapping({ root, catalog: null });
     assert.equal(bad[0].level, 'fail');
-    assert.match(bad[0].message, /not provider\/model/);
-    assert.ok(config);
+    assert.match(bad[0].message, /not valid: .*not provider\/model/);
+    writeFileSync(join(root, 'models.json'), '{"tiers":{"nope":"p/a"}}');
+    assert.match(checkModelMapping({ root, catalog: null })[0].message, /unknown tier/);
   });
 
   test('a model OpenCode does not list is a warning', (t) => {
@@ -292,7 +331,8 @@ describe('the command line', () => {
     const ok = run(config, sb);
     assert.equal(ok.status, 0, ok.stderr + ok.stdout);
     assert.match(ok.stdout, /^ok {4}install: /m);
-    assert.match(ok.stdout, /no problems|everything checks out/);
+    assert.match(ok.stdout, /everything checks out/);
+    assert.doesNotMatch(ok.stdout, /^warn /m, 'a fresh install has no warnings, or the doctor would be ignored');
     rmSync(agent('design-team/architect'));
     const bad = run(config, sb);
     assert.equal(bad.status, 1);
