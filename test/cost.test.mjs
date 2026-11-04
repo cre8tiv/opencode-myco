@@ -47,7 +47,8 @@ function knowSession(sb, session) {
   appendFileSync(p, JSON.stringify({ ts: new Date().toISOString(), event: 'SessionEnd', session, agent: LEAD }) + '\n');
 }
 
-const report = (sb, args = []) => runNode(COST, { args: ['--json', ...args], cwd: sb.project, env: sb.env }).then((r) => ({ ...r, json: r.stdout.trim().startsWith('{') ? JSON.parse(r.stdout) : null }));
+// These tests read Claude Code transcripts; OpenCode's are in usage-opencode.test.mjs.
+const report = (sb, args = []) => runNode(COST, { args: ['--json', '--source', 'claude', ...args], cwd: sb.project, env: sb.env }).then((r) => ({ ...r, json: r.stdout.trim().startsWith('{') ? JSON.parse(r.stdout) : null }));
 const group = (json, key) => json.groups.find((g) => g.key === key);
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 0.01, `${actual} is not about ${expected}`);
 
@@ -182,7 +183,7 @@ describe('cost.mjs', () => {
     knowSession(sb, 's-new');
     const r = await report(sb);
     assert.equal(group(r.json, 'pkg/round-1').unpriced_models, true);
-    const text = await runNode(COST, { cwd: sb.project, env: sb.env });
+    const text = await runNode(COST, { args: ['--source', 'claude'], cwd: sb.project, env: sb.env });
     assert.match(text.stdout, /unpriced/);
   });
 
@@ -190,7 +191,7 @@ describe('cost.mjs', () => {
     const sb = project(t);
     leadSession(sb);
     knowSession(sb, 's-lead');
-    const r = await runNode(COST, { cwd: sb.project, env: sb.env });
+    const r = await runNode(COST, { args: ['--source', 'claude'], cwd: sb.project, env: sb.env });
     assert.match(r.stdout, /^# Cost, by work/m);
     assert.match(r.stdout, /\| order-exceptions\/arch \| \$20\.00 \|/);
     assert.match(r.stdout, /\*\*Total\*\* \| \*\*\$38\.00\*\*/);
@@ -199,7 +200,7 @@ describe('cost.mjs', () => {
 
   test('says so when nothing has been recorded', async (t) => {
     const sb = project(t);
-    const r = await runNode(COST, { cwd: sb.project, env: sb.env });
+    const r = await runNode(COST, { args: ['--source', 'claude'], cwd: sb.project, env: sb.env });
     assert.equal(r.status, 0);
     assert.match(r.stdout, /No usage recorded yet/);
   });
@@ -213,7 +214,7 @@ describe('cost.mjs', () => {
 
   test('--export without an endpoint says how to set one up', async (t) => {
     const sb = project(t);
-    const r = await runNode(COST, { args: ['--export'], cwd: sb.project, env: sb.env });
+    const r = await runNode(COST, { args: ['--source', 'claude', '--export'], cwd: sb.project, env: sb.env });
     assert.equal(r.status, 1);
     assert.match(r.stderr, /TEAM_OPS_OTLP_ENDPOINT/);
   });

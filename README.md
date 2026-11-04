@@ -32,6 +32,7 @@ This is a port in progress. Read this before relying on a part of it.
 - The guards: the merge gate and the `agent-coach` write guard, including through command-rewriting plugins, and the native `gh pr merge` backstop.
 - The event stream (tool failures, permission denials, dispatches, compaction hook, run end), `start_work` and `log_friction`.
 - [`myco doctor`](#myco-doctor), which finds the failures that make no noise.
+- The cost report, read from OpenCode's own sessions. Checked against the shape of real session data and run against a real OpenCode; no team run has been priced end to end yet.
 
 **Installed, but not yet run end to end under OpenCode:**
 
@@ -42,7 +43,6 @@ This is a port in progress. Read this before relying on a part of it.
 
 - **Worktree isolation for ICs and QA.** The agents are told they work in an isolated worktree. They don't: the installer drops that setting and the plugin does not yet provide it, so they work in the checkout the session runs in. Until it lands, don't run parallel ICs on overlapping files.
 - **Delegation.** The leads' prompts still describe Claude Code's agent, message and task tools. OpenCode's `subagent` tool works, but the instructions that go with it haven't been rewritten.
-- **The cost report.** `cost-report` and `cost.mjs` read Claude Code's transcript files, so they don't work here. The data (per-message tokens by agent and model) is available from OpenCode; the report isn't built.
 - **Review pages** (`publish-review`) are claude.ai artifacts, and Claude Design prototypes have no OpenCode equivalent.
 - **`agent-coach`** reads the event stream, friction reports and your team profiles; its transcript-based sources aren't ported.
 - **Evals** (`evals/`) run on the Claude Code eval harness only.
@@ -284,9 +284,10 @@ team-ops writes to a stream under `~/.claude/ops/<stream>/`, named by `stream:` 
 
 - **`events.jsonl`**: team activity, for team agents only. Tool failures (`PostToolUseFailure`), refused calls (`PermissionDenied`, whether a permission rule refused it or a guard did), dispatches with the agent's own report (`SubagentStart`, `SubagentStop`), compaction (`PreCompact`; the hook registers cleanly, but no run has compacted yet, so it hasn't been seen firing), runs that ended on an error (`StopFailure`), and the end of a lead's run (`SessionEnd`). Successful tool calls are deliberately not recorded.
 - **`friction.jsonl`**: reports agents file about their own instructions being unclear, a tool missing, a task too vague, or a handoff losing information, through the `log_friction` tool. An agent is the only witness to its own instructions being ambiguous, so `agent-coach` weighs these heavily.
+- **Usage and cost**: nothing is recorded as it happens. `cost-report` (`node "$MYCO_ROOT/team-ops/scripts/cost.mjs"`) asks OpenCode for the sessions of this project that changed since they were last recorded, and reads the tokens each response used, by agent and model. Cost is an estimate at API list prices, by unit of work; a model with no list price (a local one) shows as `unpriced`. It needs the `opencode` command on your `PATH`, and only counts team agents.
 - **Work tags**: leads name a design package round or an engineering phase with the `start_work` tool, and the tech lead prefixes each dispatched agent's task with its ticket (`[CLOUD-123] implement retry`). Records carry the work, so activity can be joined to what it was for.
 
-If you set `TEAM_OPS_OTLP_ENDPOINT`, events and friction are also exported as OpenTelemetry; see [Team telemetry](plugins/team-ops/telemetry/README.md). The export code is shared with the Claude Code version and is unit-tested, but it hasn't been checked end to end against OpenCode, and that guide was written for the Claude Code version. Token usage and cost reporting are [not ported yet](#status).
+If you set `TEAM_OPS_OTLP_ENDPOINT`, events and friction are also exported as OpenTelemetry; see [Team telemetry](plugins/team-ops/telemetry/README.md). The export code is shared with the Claude Code version and is unit-tested, but it hasn't been checked end to end against OpenCode, and that guide was written for the Claude Code version. 
 
 ## Working with the engineering team
 
