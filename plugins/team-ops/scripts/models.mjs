@@ -160,7 +160,7 @@ export function warnings({ models, agentsDir, catalog }) {
  * @returns {any[] | null} the models OpenCode knows, or null when `opencode` can't be asked.
  *   MYCO_MODELS_CATALOG names a JSON file to use instead (offline use, tests), or "none".
  */
-function readCatalog() {
+export function readCatalog() {
   const override = process.env.MYCO_MODELS_CATALOG;
   if (override) {
     if (override === 'none') return null;

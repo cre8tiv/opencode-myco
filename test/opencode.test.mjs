@@ -8,7 +8,7 @@
 // OpenCode configuration, sessions or credentials.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync, readFileSync, realpathSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT, sandbox } from './helpers.mjs';
@@ -99,6 +99,70 @@ describe('installed into OpenCode', { skip: !enabled && 'set MYCO_TEST_OPENCODE=
     }
     assert.ok(Array.isArray(names), JSON.stringify(names));
     for (const tool of ['start_work', 'log_friction']) assert.ok(names.includes(tool), `${tool} is not among ${names.join(', ')}`);
+  });
+
+  describe('myco doctor, against the real thing', () => {
+    /** A global install in a sandbox HOME, a git project, and a way to run the installed doctor in it. */
+    function doctorEnv(t) {
+      const sb = sandbox(t);
+      const config = join(sb.home, '.config', 'opencode');
+      install({ target: config });
+      const dir = join(sb.root, 'proj');
+      mkdirSync(dir, { recursive: true });
+      const env = { ...process.env, HOME: sb.home, USERPROFILE: sb.home, XDG_CONFIG_HOME: join(sb.home, '.config'), XDG_DATA_HOME: join(sb.home, '.local', 'share'), MYCO_MODELS_CATALOG: 'none' };
+      const git = (...a) => spawnSync('git', ['-c', 'user.email=t@e', '-c', 'user.name=t', ...a], { cwd: dir, encoding: 'utf8' });
+      git('init', '-q', '-b', 'main');
+      writeFileSync(join(dir, 'README.md'), 'x');
+      git('add', '-A');
+      git('commit', '-q', '-m', 'init');
+      const doctor = () => spawnSync(process.execPath, [join(config, 'myco', 'team-ops', 'scripts', 'doctor.mjs'), '--cwd', dir], { cwd: dir, encoding: 'utf8', timeout: 180000, env });
+      return { config, doctor };
+    }
+
+    test('a healthy install passes, and every feature is reported active', (t) => {
+      const { doctor } = doctorEnv(t);
+      const r = doctor();
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+      assert.match(r.stdout, /^ok {4}agents \(live\): all 11 team agents are visible/m);
+      assert.match(r.stdout, /^ok {4}plugin \(live\): loaded/m);
+      assert.match(r.stdout, /^ok {4}features: all active: capture, coach-guard, merge-gate, start_work, log_friction/m);
+    });
+
+    test('a guard whose code is missing is caught from what the running plugin reports, which is how it fails in practice', (t) => {
+      const { config, doctor } = doctorEnv(t);
+      // Only the plugin's own view says it is gone: remove the file the loader needs, not a file the doctor checks first.
+      writeFileSync(join(config, 'myco', 'engineering-team', 'scripts', 'merge-gate-core.mjs'), 'this is not javascript (((\n');
+      const r = doctor();
+      assert.equal(r.status, 1, r.stdout);
+      assert.match(r.stdout, /^FAIL {2}merge-gate: not active: the plugin loaded but merge-gate-core\.mjs did not load/m);
+      assert.match(r.stdout, /^ok {4}plugin \(live\): loaded/m, 'the plugin itself did load, which is why nothing else would have said anything');
+    });
+
+    test('a plugin that fails to load is caught, with the host\'s own reason', (t) => {
+      const { config, doctor } = doctorEnv(t);
+      writeFileSync(join(config, 'plugins', 'myco', 'index.js'), 'this is not javascript (((\n');
+      const r = doctor();
+      assert.equal(r.status, 1, r.stdout);
+      assert.match(r.stdout, /^FAIL {2}plugin \(live\): the plugin did not load/m);
+      assert.match(r.stdout, /OpenCode's log says: /);
+    });
+
+    test('a project install seen from a git worktree is caught', (t) => {
+      const { doctor, config } = doctorEnv(t);
+      // Move the global install into the project, uncommitted, as a project install is, then look from a worktree.
+      const proj = join(config, '..', '..', '..', 'proj');
+      rmSync(join(config, '..', 'opencode'), { recursive: true, force: true });
+      install({ target: join(proj, '.opencode') });
+      const wt = join(proj, '..', 'wt');
+      spawnSync('git', ['worktree', 'add', '-q', wt, '-b', 'wt'], { cwd: proj });
+      const r = spawnSync(process.execPath, [join(proj, '.opencode', 'myco', 'team-ops', 'scripts', 'doctor.mjs'), '--cwd', wt], {
+        cwd: wt, encoding: 'utf8', timeout: 180000,
+        env: { ...process.env, HOME: join(config, '..', '..'), USERPROFILE: join(config, '..', '..'), XDG_CONFIG_HOME: join(config, '..'), XDG_DATA_HOME: join(config, '..', '..', '.local', 'share'), MYCO_MODELS_CATALOG: 'none' },
+      });
+      assert.equal(r.status, 1, r.stdout);
+      assert.match(r.stdout, /^FAIL {2}agents \(live\): 11 team agents are not visible from .*\(a git worktree\)/m);
+      assert.ok(doctor);
+    });
   });
 
   test('no Claude Code key reaches the provider request', (t) => {

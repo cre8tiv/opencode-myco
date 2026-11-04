@@ -9,6 +9,7 @@
 //   <target>/agents/<team>/<role>.md   agents, with their frontmatter rewritten for OpenCode
 //   <target>/skills/<name>/            skills
 //   <target>/myco/<team>/              each team's scripts and templates ($MYCO_ROOT/<team>)
+//   <target>/myco/install.json         what was installed, for the doctor (<target>/myco/team-ops/scripts/doctor.mjs)
 //   <target>/plugins/myco/             the plugin that provides $MYCO_ROOT
 //
 // Every agent is installed with a native rule denying `gh pr merge`. It holds even if the
@@ -31,6 +32,7 @@
 // The agent sources keep their Claude Code frontmatter, so they stay identical to
 // upstream; this script is where it becomes OpenCode's. Only what the script owns is
 // replaced on a reinstall: a user's own agents, skills and models.json are left alone.
+import { execFileSync } from 'node:child_process';
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
@@ -176,6 +178,17 @@ export function install({ target, models, repo = ROOT, mergeBackstop = true }) {
 
   rmSync(join(target, 'plugins', 'myco'), { recursive: true, force: true });
   cpSync(join(repo, 'opencode-plugin', 'myco'), join(target, 'plugins', 'myco'), { recursive: true });
+
+  // What was installed, for `myco doctor`: the merge backstop is the one choice recorded nowhere else.
+  const versions = Object.fromEntries(teams.map((t) => [t, JSON.parse(readFileSync(join(repo, 'plugins', t, 'meta.json'), 'utf8')).version]));
+  let source = null;
+  try {
+    source = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    // Not installed from a git checkout.
+  }
+  mkdirSync(join(target, 'myco'), { recursive: true });
+  writeFileSync(join(target, 'myco', 'install.json'), JSON.stringify({ installedAt: new Date().toISOString(), source, teams: versions, agents: found, skills, mergeBackstop }, null, 2) + '\n');
   return { agents: found, skills, teams };
 }
 
@@ -201,6 +214,7 @@ function main(argv) {
       (modelsFile ? ` (models from ${modelsFile})` : ' (no model mapping: agents use your default model)') +
       (mergeBackstop ? '' : '; agents may run `gh pr merge` where a project\'s merge_policy allows it'),
   );
+  console.log(`Check it from any project, at any time: node "${join(target, 'myco', 'team-ops', 'scripts', 'doctor.mjs')}"`);
 }
 
 /** Whether this file is the one being run. Both sides are resolved: a symlinked path (a macOS temp directory, a dotfiles-managed config) differs from the real one, and the script would silently do nothing. */
