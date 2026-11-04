@@ -208,6 +208,30 @@ describe('dispatching agents', () => {
     assert.equal(stop.work, 'CLOUD-9');
   });
 
+  test('the delegate tool is recorded the same way, with the session it names', async (t) => {
+    const c = await capture(t);
+    const del = { ...START, tool: 'delegate' };
+    c.before(del);
+    c.after({ ...del, status: 'completed', result: { output: { sessionID: 'ses_iso', status: 'completed', output: 'built' } } });
+    const [start, stop] = await c.events(2);
+    assert.equal(start.event, 'SubagentStart');
+    assert.equal(start.work, 'CLOUD-9');
+    assert.equal(stop.event, 'SubagentStop');
+    assert.equal(stop.agent_id, 'ses_iso');
+    assert.equal(stop.report, 'built');
+  });
+
+  test('an agent delegate isolated has no parent session of its own, but its failures still name its lead\'s work', async (t) => {
+    const c = await capture(t);
+    await c.work.set('ses_lead', 'CLOUD-5');
+    await c.work.link('ses_iso', 'ses_lead', 'CLOUD-9');
+    c.after({ tool: 'shell', agent: IC, sessionID: 'ses_iso', input: { command: 'make' }, status: 'error', error: { message: 'boom' } });
+    const [rec] = await c.events();
+    assert.equal(rec.event, 'PostToolUseFailure');
+    assert.equal(rec.work, 'CLOUD-9');
+    assert.equal(rec.parent_work, 'CLOUD-5');
+  });
+
   test('without a [TAG] the dispatched agent is on its lead\'s work', async (t) => {
     const c = await capture(t);
     await c.work.set('ses_lead', 'CLOUD-5');
@@ -307,6 +331,21 @@ describe('sessions and events', () => {
     assert.equal(rows[0].event, 'SessionEnd');
     assert.equal(rows[0].agent, LEAD);
     assert.equal(rows[0].session, 'ses_lead');
+  });
+
+  test('an agent delegate isolated is not a lead either, in the instance that serves its worktree, which never saw the lead', async (t) => {
+    const c = await capture(t);
+    serve(c, 'ses_iso', IC);
+    // No parentID, as delegate creates it; the link is the metadata, and the work is the task's own [TAG].
+    c.send({ type: 'session.created', data: { sessionID: 'ses_iso', title: '[CLOUD-9] build', agent: IC, metadata: { mycoParent: 'ses_lead' }, location: { directory: c.sb.project } } });
+    c.send({ type: 'session.execution.succeeded', data: { sessionID: 'ses_iso' } });
+    await c.quiet();
+    c.after({ tool: 'shell', agent: IC, sessionID: 'ses_iso', input: { command: 'make' }, status: 'error', error: { message: 'boom' } });
+    const [rec] = await c.events();
+    await c.quiet();
+    assert.equal(rec.event, 'PostToolUseFailure');
+    assert.equal(rec.work, 'CLOUD-9');
+    assert.equal((await c.events(0)).some((r) => r.event === 'SessionEnd'), false);
   });
 
   test('a dispatched agent starts on its lead\'s work, or on the [TAG] its task begins with', async (t) => {

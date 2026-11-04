@@ -41,8 +41,8 @@ This is a port in progress. Read this before relying on a part of it.
 
 **Not ported yet:**
 
-- **Worktree isolation for ICs and QA.** The agents are told they work in an isolated worktree. They don't: the installer drops that setting and the plugin does not yet provide it, so they work in the checkout the session runs in. Until it lands, don't run parallel ICs on overlapping files.
-- **Delegation.** The leads' prompts still describe Claude Code's agent, message and task tools. OpenCode's `subagent` tool works, but the instructions that go with it haven't been rewritten.
+- **The leads using `delegate`.** The plugin now provides a `delegate` tool that starts a team agent, optionally in its own git worktree (`isolated`, with a `branch`), and returns its report; `subagent` still works. The leads' prompts have not been rewritten to use it: they still describe Claude Code's agent, message and task tools, so ICs and QA still work in the checkout the session runs in unless told otherwise. Until that lands, don't run parallel ICs on overlapping files.
+- **`delegate` is checked in pieces, not yet end to end.** The host-side behavior (an isolated child gets a worktree and no parent session, a deny on the lead's checkout, linked by metadata) is checked against a real OpenCode with no model; the agent's run, abort propagation and a full lead-to-IC round trip are covered by stand-in tests only.
 - **Review pages** (`publish-review`) are claude.ai artifacts, and Claude Design prototypes have no OpenCode equivalent.
 - **`agent-coach`** reads the event stream, friction reports and your team profiles; its transcript-based sources aren't ported.
 - **Evals** (`evals/`) run on the Claude Code eval harness only.
@@ -85,7 +85,7 @@ What it puts where:
 | ----------------------- | ---- |
 | `agents/<team>/<role>.md` | The eleven agents, with their frontmatter rewritten for OpenCode |
 | `skills/<name>/` | The eight skills |
-| `plugins/myco/` | The plugin: guards, event capture, `start_work`, `log_friction` |
+| `plugins/myco/` | The plugin: guards, event capture, `start_work`, `log_friction`, `delegate` |
 | `myco/<team>/` | Each team's scripts and templates |
 | `myco/models.json` | Your model mapping, if you made one |
 | `myco/install.json` | What was installed, for the doctor |
@@ -197,7 +197,7 @@ Run it from the project you work in. It checks:
 | Project | Its `merge_policy` against the install (a project that allows merging next to an install that forbids it); whether the event stream can be written |
 | Models | The same warnings as `models.mjs check` |
 | Agents, live | Which team agents OpenCode, started in this directory, can see, and in a worktree, why not |
-| Plugin, live | Whether a command run in a session sees the plugin, and which of its parts report they came up: `capture`, `coach-guard`, `merge-gate`, `start_work`, `log_friction` |
+| Plugin, live | Whether a command run in a session sees the plugin, and which of its parts report they came up: `capture`, `coach-guard`, `merge-gate`, `start_work`, `log_friction`, `delegate` |
 
 A healthy install, with a model mapping. Without one, the `models` line is an `info` note that every agent uses your default model, and nothing is flagged:
 
@@ -214,7 +214,7 @@ ok    models: mapping has no problems
 ok    opencode: opencode v2.2.5
 ok    agents (live): all 11 team agents are visible from ~/code/myproject
 ok    plugin (live): loaded
-ok    features: all active: capture, coach-guard, merge-gate, start_work, log_friction
+ok    features: all active: capture, coach-guard, merge-gate, start_work, log_friction, delegate
 
 everything checks out
 ```

@@ -77,7 +77,7 @@ describe('installed into OpenCode', { skip: !enabled && 'set MYCO_TEST_OPENCODE=
     assert.equal(decide('git push origin main'), 'allow');
   });
 
-  test('start_work and log_friction are offered to agents as tools', async (t) => {
+  test('start_work, log_friction and delegate are offered to agents as tools', async (t) => {
     // No tool-listing endpoint exists, so a probe plugin asks the host from a hook that runs while the
     // server is handling a request, after every plugin has set up.
     const { dir, oc } = project(t);
@@ -98,7 +98,50 @@ describe('installed into OpenCode', { skip: !enabled && 'set MYCO_TEST_OPENCODE=
       try { names = JSON.parse(readFileSync(out, 'utf8')); } catch { await new Promise((r) => setTimeout(r, 250)); }
     }
     assert.ok(Array.isArray(names), JSON.stringify(names));
-    for (const tool of ['start_work', 'log_friction']) assert.ok(names.includes(tool), `${tool} is not among ${names.join(', ')}`);
+    for (const tool of ['start_work', 'log_friction', 'delegate']) assert.ok(names.includes(tool), `${tool} is not among ${names.join(', ')}`);
+  });
+
+  test('delegate puts an isolated agent in its own worktree, linked to its lead by metadata, with the lead\'s checkout closed to edits', async (t) => {
+    // No model is configured, so the agent's run fails; what is checked is what delegate set up before it, as
+    // the host recorded it. A probe plugin calls the tool from a hook, as a lead's model would.
+    const { dir, oc } = project(t);
+    const out = join(dir, 'delegate.json');
+    mkdirSync(join(dir, '.opencode', 'plugins', 'delegateprobe'), { recursive: true });
+    writeFileSync(join(dir, '.opencode', 'plugins', 'delegateprobe', 'index.js'),
+      'import { writeFileSync } from "node:fs";\n' +
+      'export default { id: "delegateprobe", async setup(ctx) { let ran = false; await ctx.shell.hook("create.before", async () => {\n' +
+      '  if (ran) return; ran = true;\n' +
+      '  const o = {};\n' +
+      '  try {\n' +
+      '    const l = await ctx.tool.list(); const a = Array.isArray(l) ? l : (l.data || l.items || Object.values(l));\n' +
+      '    const tool = a.find((x) => (x.name || x.id) === "delegate" || x.id === "delegate");\n' +
+      '    const lead = await ctx.session.create({ title: "lead" });\n' +
+      '    try { await tool.execute({ agent: "engineering-team/ic-generalist", description: "[T-1] probe", prompt: "hi", isolated: true }, { sessionID: lead.id, agent: "engineering-team/tech-lead", signal: new AbortController().signal, progress: async () => {} }); o.result = "returned"; }\n' +
+      '    catch (e) { o.error = String(e && e.message || e); }\n' +
+      '    const all = await ctx.session.list({}); o.sessions = (Array.isArray(all) ? all : (all.data || [])).map((s) => ({ id: s.id, title: s.title, agent: s.agent, parentID: s.parentID, metadata: s.metadata, location: s.location, permissions: s.permissions }));\n' +
+      '    o.lead = lead.id;\n' +
+      '  } catch (e) { o.probeError = String(e && e.stack || e); }\n' +
+      '  writeFileSync(' + JSON.stringify(out) + ', JSON.stringify(o));\n' +
+      '}); } };\n');
+    const id = JSON.parse(oc('api', 'POST', '/api/session', '-d', '{"title":"myco-test"}').stdout).data.id;
+    t.after(() => oc('session', 'delete', id));
+    oc('api', 'POST', `/api/session/${id}/shell`, '-d', JSON.stringify({ command: 'echo hi' }));
+    let got;
+    for (let i = 0; i < 120 && !got; i++) {
+      try { got = JSON.parse(readFileSync(out, 'utf8')); } catch { await new Promise((r) => setTimeout(r, 250)); }
+    }
+    assert.ok(got, 'the probe did not run');
+    assert.equal(got.probeError, undefined, got.probeError);
+    const child = got.sessions.find((s) => s.title === '[T-1] probe');
+    assert.ok(child, JSON.stringify(got.sessions));
+    assert.equal(child.agent, 'engineering-team/ic-generalist');
+    assert.equal(child.parentID, undefined, 'a parentID would have put it back in the lead\'s checkout');
+    assert.deepEqual(child.metadata, { mycoParent: got.lead });
+    // The run failed (no model), and nothing had changed, so delegate has already removed the worktree: compare by name.
+    assert.ok(child.location.directory.includes('worktree'), child.location.directory);
+    assert.notEqual(child.location.directory, dir, 'it runs in a worktree');
+    assert.match(got.error || '', /Agent failed|worktree was removed/);
+    assert.ok(child.permissions.some((p) => p.action === 'edit' && p.effect === 'deny' && p.resource === `${dir}/**`), JSON.stringify(child.permissions));
   });
 
   describe('myco doctor, against the real thing', () => {

@@ -26,7 +26,7 @@ import { streamDir, resolveStreamName } from './stream.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 /** The files the plugin installs as (<config>/plugins/myco/). A test keeps this equal to the source. */
-export const PLUGIN_FILES = ['capture.js', 'core.js', 'guards.js', 'index.js', 'tools.js', 'work.js'];
+export const PLUGIN_FILES = ['capture.js', 'core.js', 'delegate.js', 'guards.js', 'index.js', 'tools.js', 'work.js'];
 /** The decision code the plugin loads from the install; without one, its feature silently does not exist. */
 export const CORES = [
   ['team-ops', 'coach-guard-core.mjs'],
@@ -35,7 +35,7 @@ export const CORES = [
   ['engineering-team', 'merge-gate-core.mjs'],
 ];
 /** What a plugin that loaded completely reports through MYCO_FEATURES. A test keeps this in step with the plugin. */
-export const FEATURES = ['capture', 'coach-guard', 'merge-gate', 'start_work', 'log_friction'];
+export const FEATURES = ['capture', 'coach-guard', 'merge-gate', 'start_work', 'log_friction', 'delegate'];
 const FEATURE_CORE = { capture: 'capture-core.mjs', 'coach-guard': 'coach-guard-core.mjs', 'merge-gate': 'merge-gate-core.mjs', log_friction: 'friction-core.mjs' };
 
 /** @typedef {{level: 'ok' | 'info' | 'warn' | 'fail', area: string, message: string, fix?: string}} Result */
