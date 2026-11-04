@@ -41,8 +41,7 @@ This is a port in progress. Read this before relying on a part of it.
 
 **Not ported yet:**
 
-- **The leads using `delegate`.** The plugin now provides a `delegate` tool that starts a team agent, optionally in its own git worktree (`isolated`, with a `branch`), and returns its report; `subagent` still works. The leads' prompts have not been rewritten to use it: they still describe Claude Code's agent, message and task tools, so ICs and QA still work in the checkout the session runs in unless told otherwise. Until that lands, don't run parallel ICs on overlapping files.
-- **`delegate` is checked in pieces, not yet end to end.** The host-side behavior (an isolated child gets a worktree and no parent session, a deny on the lead's checkout, linked by metadata) is checked against a real OpenCode with no model; the agent's run, abort propagation and a full lead-to-IC round trip are covered by stand-in tests only.
+- **Delegation has not been run end to end with a model.** The leads' prompts now dispatch with `delegate` (the tech lead isolates every IC and QA run in its own worktree; the product lead leaves specialists in the shared tree), continue an agent by its `sessionID`, and no longer mention Claude Code's agent, message and task tools. What is checked: the host-side behavior of `delegate` against a real OpenCode with no model, and the stand-in tests. Not yet seen: a lead choosing the tool, an agent working in its worktree, abort on a live server. Until you have watched one run, treat parallel ICs on overlapping files with care.
 - **Review pages** (`publish-review`) are claude.ai artifacts, and Claude Design prototypes have no OpenCode equivalent.
 - **`agent-coach`** reads the event stream, friction reports and your team profiles; its transcript-based sources aren't ported.
 - **Evals** (`evals/`) run on the Claude Code eval harness only.

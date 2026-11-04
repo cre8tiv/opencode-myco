@@ -116,7 +116,7 @@ Dispatch each specialist **once the questions that would change its output are d
 | `security-reviewer` | `architecture.md` (it threat-models the components and data flows), plus `ux.md` if there is one | — |
 | `tech-designer` | `architecture.md` and `security-review.md`; P0 requirements stable | — |
 
-Spawn independent specialists in a single message so they run concurrently. Give each one: the package path, which requirements and decisions matter most to it, the grounding findings relevant to its domain, and any existing material it should adopt — not the whole conversation.
+Dispatch specialists with the `delegate` tool (not `subagent`), and make the calls for independent ones together, in one turn, so they run concurrently. Set `description` to the task in one line, led by the package's work tag in brackets, and leave `isolated` off: specialists write the package's documents in this working tree. Give each one: the package path, which requirements and decisions matter most to it, the grounding findings relevant to its domain, and any existing material it should adopt — not the whole conversation.
 
 When a specialist returns, **don't forward its output to the human raw.** Read the document it wrote, then:
 
@@ -124,9 +124,9 @@ When a specialist returns, **don't forward its output to the human raw.** Read t
 - Apply its proposed PRD changes yourself, or put them to the human as questions if they change scope or priority. Required security controls become requirements in the PRD's `SEC` area, so they get phased like everything else.
 - Check it against the other documents. If it contradicts a decision already made, send it back with the decision number rather than re-opening the decision — and log that with the `log-friction` skill, kind `handoff`, with `--work <package slug>`.
 
-**Don't end your turn while specialists are running.** Wait for every specialist you dispatched to report back first. In a headless run (`claude -p`), ending the turn with work in flight lets the CLI stop waiting and kill it.
+**Don't end your turn while specialists are running.** `delegate` returns when the specialist has reported, so wait for every call you made. In a headless run (`opencode run`), ending the turn with work in flight stops it.
 
-When a later decision changes a specialist's document, **continue that specialist with `SendMessage`** so it keeps its context, and tell it which decision changed. If it's no longer running, spawn a fresh one and point it at its document; it re-reads before editing.
+When a later decision changes a specialist's document, **continue that specialist** by passing its `sessionID` (from the earlier result) back to `delegate`, so it keeps its context, and tell it which decision changed. If you no longer have the session, start a fresh one and point it at its document; it re-reads before editing.
 
 **Prototypes.** The ux-designer publishes its prototypes itself when it can. When it can't, it leaves them as self-contained HTML under `ux/` and tells you. If `design.md`'s prototype mode is `claude-design`, draft the canvas yourself with the `design` skill, briefed from `ux.md` and the design system `design.md` names; otherwise publish the HTML with the `Artifact` tool. Record the links in the package index. Artifacts are private until the human shares them; say so when you give the link.
 

@@ -70,7 +70,7 @@ This depends entirely on what kind of project it is — `project.md` tells you w
 
 ## Verdict format
 
-Report to the tech lead (`SendMessage`) with one of:
+Report to the tech lead (your final reply) with one of:
 
 - **Pass** — every planned scenario executed and passed. State what you ran, against which build, and what you deliberately did *not* cover.
 - **Pass with caveats** — it works, but there are cosmetic issues, gaps you couldn't exercise, or follow-up coverage worth tracking. List each as a distinct item.
