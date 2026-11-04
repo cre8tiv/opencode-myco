@@ -37,7 +37,7 @@ This is a port in progress. Read this before relying on a part of it.
 **Installed, but not yet run end to end under OpenCode:**
 
 - The leads' whole workflows: design to a signed-off package; tech lead through review and QA to a merge handoff.
-- The setup skills `init-team`, `init-design` and `init-knowledge`. Their text now describes OpenCode (`opencode mcp`, `opencode.json`), but none has been run through a real setup.
+- The setup skills `init-team`, `init-design`, `init-knowledge` and `init-models`. Their text now describes OpenCode (`opencode mcp`, `opencode.json`), but none has been run through a real setup.
 
 **Not ported yet:**
 
