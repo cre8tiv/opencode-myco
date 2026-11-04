@@ -43,7 +43,34 @@ const SHELLS = new Set(['bash', 'sh', 'zsh', 'pwsh', 'powershell', 'cmd']);
  * Commands that run another command: judge what they run. Plugins that rewrite or shrink command
  * output put the real command behind one before this guard sees it, as "rtk rm -rf x".
  */
-const WRAPPERS = new Set(['rtk', 'env', 'time', 'command', 'nohup', 'exec', 'builtin', 'stdbuf']);
+const WRAPPERS = new Set(['rtk', 'env', 'time', 'command', 'nohup', 'exec', 'builtin', 'stdbuf', 'sudo']);
+
+/**
+ * The options of each wrapper that take a value in the next word: in "env -u NAME rm -rf x", NAME is
+ * the option's value, not the command. A value attached to its option ("--chdir=src", "-oL") is one
+ * word and needs no entry. A wrapper not listed has no such options, or none that matter here.
+ */
+const WRAPPER_VALUE_OPTIONS = {
+  env: new Set(['-u', '--unset', '-C', '--chdir', '-S', '--split-string']),
+  time: new Set(['-o', '--output', '-f', '--format']),
+  exec: new Set(['-a']),
+  stdbuf: new Set(['-i', '-o', '-e', '--input', '--output', '--error']),
+  sudo: new Set(['-u', '--user', '-g', '--group', '-C', '-D', '--chdir', '-h', '--host', '-p', '--prompt', '-r', '--role', '-t', '--type', '-T', '--command-timeout', '-U', '--other-user']),
+};
+
+/**
+ * How many of a wrapper's words are its own options, and the values they take, before the command it runs.
+ * @param {string} verb @param {{text: string, quoted: boolean}[]} args @returns {number}
+ */
+function wrapperOptionWords(verb, args) {
+  const takesValue = WRAPPER_VALUE_OPTIONS[verb] || new Set();
+  let i = 0;
+  while (i < args.length && args[i].text.startsWith('-') && !args[i].quoted) {
+    if (args[i].text === '--') return i + 1; // the end of the options
+    i += takesValue.has(args[i].text) ? 2 : 1;
+  }
+  return i;
+}
 
 /** How many wrappers or nested shells to look through. */
 const MAX_DEPTH = 4;
@@ -129,18 +156,24 @@ const verbOf = (word) => (word.split(/[\\/]/).pop() || '').toLowerCase().replace
  * @returns {string | null}
  */
 function judgeWords(words, depth) {
-  // Skip env assignments and sudo to reach the command itself.
+  // Skip env assignments to reach the command itself.
   let v = 0;
-  while (v < words.length && (/^\w+=/.test(words[v].text) || words[v].text === 'sudo')) v++;
+  while (v < words.length && /^\w+=/.test(words[v].text)) v++;
   if (v >= words.length) return null;
   const verb = verbOf(words[v].text);
   const args = words.slice(v + 1);
 
   // "rtk rm -rf x": the command that runs is what follows the wrapper and its options.
   if (WRAPPERS.has(verb) && depth < MAX_DEPTH) {
-    let i = 0;
-    while (i < args.length && args[i].text.startsWith('-') && !args[i].quoted) i++;
-    return judgeWords(args.slice(i), depth + 1);
+    // env -S "rm -rf x": the value of -S is itself a command line.
+    if (verb === 'env') {
+      const split = args.findIndex((a) => a.text === '-S' || a.text === '--split-string');
+      if (split >= 0 && args[split + 1]) {
+        const inner = disallowedWrite(args[split + 1].text, depth + 1);
+        if (inner) return inner;
+      }
+    }
+    return judgeWords(args.slice(wrapperOptionWords(verb, args)), depth + 1);
   }
 
   if (SHELLS.has(verb) && depth < MAX_DEPTH) {

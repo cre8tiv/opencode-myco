@@ -456,6 +456,13 @@ describe('commands another plugin has wrapped, or spelled with options', () => {
     'gh -R acme/app pr merge 42 --squash',
     'rtk gh --repo acme/app pr merge 42',
     '/usr/local/bin/gh pr merge 42',
+    // Wrapper options that take a value: the gate searches the whole command, so none of them hides a merge.
+    'env -u NAME gh pr merge 42',
+    'env -C src git push origin main',
+    'sudo -u root gh pr merge 42',
+    'time -o out.txt gh pr merge 42',
+    'stdbuf -o L git push origin HEAD:main',
+    'env -S "gh pr merge 42"',
   ];
   for (const command of BLOCKED) {
     test(`blocks: ${command}`, async (t) => {

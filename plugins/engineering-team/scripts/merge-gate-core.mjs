@@ -91,6 +91,8 @@ const GH_API = new RegExp(`${WORD}gh(?:\\.exe)?\\s+api\\b`, 'i');
 const AZ_PR = new RegExp(`${WORD}az\\s+repos\\s+pr\\s+(?:update|complete|set-auto-complete)\\b`, 'i');
 // `git -C dir push`, `git -c k=v push`: global options between git and the subcommand.
 const GIT_PUSH = new RegExp(`${WORD}git(?:\\s+(?:-C|-c)\\s+\\S+|\\s+--[\\w-]+(?:=\\S+)?)*\\s+push\\b`, 'i');
+// `env -S "gh pr merge 1"`: like `bash -c`, the quoted value is itself a command line.
+const ENV_S = new RegExp(`${WORD}env(?:\\.exe)?(?:\\s+\\S+)*?\\s+(?:-S|--split-string)\\s+(["'])([\\s\\S]*)\\1`, 'i');
 const SHELL_C = new RegExp(`${WORD}(?:bash|sh|zsh|pwsh|powershell)(?:\\.exe)?(?:\\s+[^"']*?)?\\s+-(?:c|lc|command)\\s+(["'])([\\s\\S]*)\\1\\s*$`, 'i');
 
 // Does a `git push` command target the trunk? Tokens are checked rather than the raw
@@ -121,7 +123,7 @@ function mergeAttempt(cmd, trunk, depth = 0) {
       return { what: 'az repos pr complete', pr: null };
     if (GIT_PUSH.test(blank) && pushesToTrunk(raw, trunk)) return { what: `git push to ${trunk}`, pr: null };
     // `bash -c "gh pr merge 1"`: the quoted text is the command here.
-    const inner = depth < 3 && raw.match(SHELL_C);
+    const inner = depth < 3 && (raw.match(SHELL_C) || raw.match(ENV_S));
     if (inner) {
       const found = mergeAttempt(inner[2], trunk, depth + 1);
       if (found) return found;

@@ -196,3 +196,43 @@ describe('commands another plugin has wrapped', () => {
     0,
   );
 });
+
+describe('wrapper options that take a value', () => {
+  // "env -u NAME rm -rf x": NAME is the option's value, not the command. Skipping only the flag
+  // would judge "NAME" and never see the rm. Found in review.
+  table(
+    [
+      ['Bash', 'command', 'env -u NAME rm -rf .claude/team'],
+      ['Bash', 'command', 'env --unset NAME rm -rf .claude/team'],
+      ['Bash', 'command', 'env -C src rm -rf .claude/team'],
+      ['Bash', 'command', 'env --chdir src rm -rf .claude/team'],
+      ['Bash', 'command', 'env -i -u A -u B rm -rf .claude/team'],
+      ['Bash', 'command', 'time -o out.txt rm -rf .claude/team'],
+      ['Bash', 'command', 'time -f %e rm -rf .claude/team'],
+      ['Bash', 'command', 'exec -a tool rm -rf .claude/team'],
+      ['Bash', 'command', 'stdbuf -o L rm -rf .claude/team'],
+      ['Bash', 'command', 'stdbuf -i0 -o L -e0 rm -rf .claude/team'],
+      ['Bash', 'command', 'sudo -u root rm -rf .claude/team'],
+      ['Bash', 'command', 'sudo -u root -g wheel rm -rf .claude/team'],
+      ['Bash', 'command', 'sudo -E -H rm -rf .claude/team'],
+      ['Bash', 'command', 'rtk sudo -u root rm -rf .claude/team'],
+      // env -S takes a whole command line.
+      ['Bash', 'command', 'env -S "rm -rf .claude/team"'],
+      ['Bash', 'command', 'env -i -S "cp a.md .claude/team/x.md"'],
+    ],
+    2,
+  );
+  table(
+    [
+      ['Bash', 'command', 'env -u NAME ls -la'],
+      ['Bash', 'command', 'env -C src cat a.md'],
+      ['Bash', 'command', 'time -o out.txt git log --oneline -5'],
+      ['Bash', 'command', 'stdbuf -o L cat notes.md'],
+      ['Bash', 'command', 'sudo -u root cat notes.md'],
+      ['Bash', 'command', 'env -S "ls -la"'],
+      ['Bash', 'command', 'env -u NAME rm .claude/ops/reports/old.md'],
+      ['Bash', 'command', 'sudo -u root rm .claude/ops/reports/old.md'],
+    ],
+    0,
+  );
+});
