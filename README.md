@@ -199,7 +199,7 @@ Run it from the project you work in. It checks:
 | Agents, live | Which team agents OpenCode, started in this directory, can see, and in a worktree, why not |
 | Plugin, live | Whether a command run in a session sees the plugin, and which of its parts report they came up: `capture`, `coach-guard`, `merge-gate`, `start_work`, `log_friction` |
 
-A healthy install:
+A healthy install, with a model mapping. Without one, the `models` line is an `info` note that every agent uses your default model, and nothing is flagged:
 
 ```
 ok    install: design-team 0.7.0, engineering-team 0.6.2, team-ops 0.10.0; installed 2026-11-04
