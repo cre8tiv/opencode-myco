@@ -70,26 +70,33 @@ export async function registerCapture(ctx, root, work = createWorkTracker(ctx)) 
     return parent ? workFor(parent) : undefined;
   };
 
-  /** Sessions already asked the host about, so each is looked up once. */
-  const asked = new Set();
+  /** Lookups of sessions the host has been asked about, in flight or done, so every caller waits for the same one. */
+  const asked = new Map();
   /**
    * What the host knows of a session this instance never saw created: an agent delegate gave its own worktree is
    * served by an instance that starts after the session was created, so it missed session.created. The session's
    * own record names its lead (metadata) and the task it was given (title). Never throws.
-   * @param {string | undefined} id
+   * @param {string | undefined} id @returns {Promise<void>}
    */
-  const learn = async (id) => {
-    if (!id || parentOf(id) || asked.has(id)) return;
-    asked.add(id);
-    try {
-      const got = await ctx.session?.get?.({ sessionID: id });
-      const info = got?.data || got;
-      const parent = info?.parentID || info?.metadata?.mycoParent;
-      if (!parent) return;
-      sessions.set(id, { ...sessions.get(id), agent: sessions.get(id)?.agent || info.agent, parentID: parent, work: bracketTag(info.title) || workFor(parent) });
-    } catch {
-      // The host may not have it any more; the record just lacks its lead.
+  const learn = (id) => {
+    if (!id || parentOf(id)) return Promise.resolve();
+    if (!asked.has(id)) {
+      asked.set(
+        id,
+        (async () => {
+          try {
+            const got = await ctx.session?.get?.({ sessionID: id });
+            const info = got?.data || got;
+            const parent = info?.parentID || info?.metadata?.mycoParent;
+            if (!parent) return;
+            sessions.set(id, { ...sessions.get(id), agent: sessions.get(id)?.agent || info.agent, parentID: parent, work: bracketTag(info.title) || workFor(parent) });
+          } catch {
+            // The host may not have it any more; the record just lacks its lead.
+          }
+        })(),
+      );
     }
+    return /** @type {Promise<void>} */ (asked.get(id));
   };
 
   /** Records are written in the order they were emitted, whatever each had to look up first. */

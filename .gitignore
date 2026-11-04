@@ -3,3 +3,7 @@ evals/results/
 
 # Working notes: plans and spikes, never committed.
 .plans/
+
+# Local, per-person: editor/OS files and Claude Code permission rules.
+.DS_Store
+.claude/settings.local.json
