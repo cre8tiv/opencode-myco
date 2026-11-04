@@ -1,6 +1,5 @@
-// Shared test helpers: an isolated home and project per test, a way to run the plugins'
-// hook scripts the way Claude Code does (JSON on stdin), builders for the session
-// transcripts the usage code reads, and a local OTLP collector.
+// Shared test helpers: an isolated home and project per test, a way to run a plugin script,
+// builders for team profiles and the stream's files, and a local OTLP collector.
 //
 // Every script that writes under ~/.claude/ops resolves the home directory through
 // os.homedir(), which reads HOME on macOS/Linux and USERPROFILE on Windows. Tests point
@@ -44,7 +43,6 @@ export function runNode(file, opts = {}) {
   const env = { ...process.env, ...opts.env };
   // A developer's own telemetry settings must not leak into a test run.
   for (const k of Object.keys(env)) if (k.startsWith('TEAM_OPS_') && !(opts.env && k in opts.env)) delete env[k];
-  if (!(opts.env && 'CLAUDE_CODE_SESSION_ID' in opts.env)) delete env.CLAUDE_CODE_SESSION_ID;
 
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [file, ...(opts.args || [])], { cwd: opts.cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -62,15 +60,6 @@ export function runNode(file, opts = {}) {
     child.stdin.end(opts.input ?? '');
   });
 }
-
-/**
- * Runs a hook script with an event payload on stdin, as Claude Code does.
- * @param {string} file
- * @param {object | string} payload an event object, or raw text to send as-is
- * @param {{cwd?: string, env?: Record<string,string|undefined>}} [opts]
- */
-export const runHook = (file, payload, opts = {}) =>
-  runNode(file, { ...opts, input: typeof payload === 'string' ? payload : JSON.stringify(payload) });
 
 /**
  * Writes a team profile's frontmatter, like /init-team or /init-design would.
@@ -95,62 +84,10 @@ export function readJsonl(file) {
 /** @param {string} home @param {string} stream @param {string} file @returns {string} path under ~/.claude/ops/<stream>/ */
 export const opsFile = (home, stream, file) => join(home, '.claude', 'ops', stream, file);
 
-// ---------- transcripts ----------
+// ---------- time ----------
 
 /** @param {number} seconds @returns {string} a timestamp `seconds` into a fixed morning, so ordering is explicit in tests */
 export const ts = (seconds) => new Date(Date.UTC(2026, 9, 12, 10, 0, seconds)).toISOString();
-
-/**
- * A usage block as Claude Code writes it.
- * @param {{input?: number, output?: number, write5m?: number, write1h?: number, read?: number, speed?: string}} u
- */
-export function usage({ input = 0, output = 0, write5m = 0, write1h = 0, read = 0, speed }) {
-  return {
-    input_tokens: input,
-    output_tokens: output,
-    cache_creation_input_tokens: write5m + write1h,
-    cache_creation: { ephemeral_5m_input_tokens: write5m, ephemeral_1h_input_tokens: write1h },
-    cache_read_input_tokens: read,
-    ...(speed ? { speed } : {}),
-  };
-}
-
-let nextId = 1;
-
-/**
- * One assistant row: a single model response, or one content block of one.
- * @param {{at: number, usage: object, model?: string, id?: string, sidechain?: boolean, content?: object[]}} r
- */
-export function assistant({ at, usage: u, model = 'claude-opus-5-5', id, sidechain = false, content = [{ type: 'text', text: 'ok' }] }) {
-  const mid = id || `msg_${nextId++}`;
-  return { type: 'assistant', uuid: `uuid_${mid}_${content.length}`, timestamp: ts(at), isSidechain: sidechain, message: { id: mid, model, usage: u, content } };
-}
-
-/** A lead invoking the team-ops:start-work skill, which is how a unit of work gets named. */
-export const startWork = (at, tag) =>
-  assistant({ at, usage: usage({ output: 1 }), content: [{ type: 'tool_use', id: `tu_${at}`, name: 'Skill', input: { skill: 'team-ops:start-work', args: tag } }] });
-
-/**
- * Writes a session transcript, and its subagents' transcripts and metadata, where Claude
- * Code keeps them: <home>/.claude/projects/<project>/<session>.jsonl and
- * <session>/subagents/agent-<id>.{jsonl,meta.json}.
- * @param {{home: string, sessionId: string, rows?: object[], lead?: string, subagents?: {id: string, agentType: string, description?: string, rows: object[]}[]}} s
- * @returns {{transcriptPath: string, subagentsDir: string}}
- */
-export function writeSession({ home, sessionId, rows = [], lead, subagents = [] }) {
-  const dir = join(home, '.claude', 'projects', 'proj-alpha');
-  const subDir = join(dir, sessionId, 'subagents');
-  mkdirSync(dir, { recursive: true });
-  const all = lead ? [{ type: 'agent-setting', agentSetting: lead }, ...rows] : rows;
-  const transcriptPath = join(dir, `${sessionId}.jsonl`);
-  writeFileSync(transcriptPath, all.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');
-  for (const s of subagents) {
-    mkdirSync(subDir, { recursive: true });
-    writeFileSync(join(subDir, `agent-${s.id}.jsonl`), s.rows.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');
-    writeFileSync(join(subDir, `agent-${s.id}.meta.json`), JSON.stringify({ agentType: s.agentType, description: s.description || '' }), 'utf8');
-  }
-  return { transcriptPath, subagentsDir: subDir };
-}
 
 // ---------- OTLP collector ----------
 

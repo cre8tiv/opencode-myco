@@ -1,5 +1,5 @@
-// The event stream as OpenCode feeds it. The record itself is covered with the Claude Code hook
-// (capture.test.mjs), which shares its core; these cover what is specific to OpenCode: which of its
+// The event stream as OpenCode feeds it. The record itself is covered in records.test.mjs; these
+// cover what is specific to OpenCode: which of its
 // events become which records, that only team agents are recorded, that the work a session named
 // reaches the record, and that nothing here ever fails the call it observes. Event shapes are the
 // ones recorded from live runs: a rule denial arrives as a Tool.Error whose own error is the

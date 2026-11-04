@@ -6,20 +6,36 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { sandbox, runHook, script, writeProfile } from './helpers.mjs';
+import { sandbox, writeProfile } from './helpers.mjs';
+import { mergeVerdict } from '../plugins/engineering-team/scripts/merge-gate-core.mjs';
 
-const GATE = script('engineering-team', 'merge-gate.mjs');
 const LEAD = 'engineering-team:tech-lead';
 const IC = 'engineering-team:ic-generalist';
+
+/**
+ * Asks the gate, and answers as a host adapter does: 2 and the message to the agent when the call is blocked.
+ * The gh stand-in some tests use is named by MERGE_GATE_GH, which the gate reads from the environment.
+ * @param {Parameters<typeof mergeVerdict>[0]} call @param {{MERGE_GATE_GH?: string}} [env]
+ */
+function verdict(call, env = {}) {
+  const had = process.env.MERGE_GATE_GH;
+  if (env.MERGE_GATE_GH) process.env.MERGE_GATE_GH = env.MERGE_GATE_GH;
+  else delete process.env.MERGE_GATE_GH;
+  try {
+    const message = mergeVerdict(call);
+    return message ? { status: 2, stderr: message } : { status: 0, stderr: '' };
+  } finally {
+    if (had === undefined) delete process.env.MERGE_GATE_GH;
+    else process.env.MERGE_GATE_GH = had;
+  }
+}
 
 /**
  * @param {ReturnType<typeof sandbox>} sb
  * @param {{tool?: string, command?: string, input?: object, agent?: string | null}} call
  */
 async function gate(sb, { tool = 'Bash', command, input, agent = LEAD }) {
-  const payload = { cwd: sb.project, tool_name: tool, tool_input: input ?? { command } };
-  if (agent) payload.agent_type = agent;
-  return runHook(GATE, payload, { env: sb.env });
+  return verdict({ agent: agent || undefined, tool, input: input ?? { command }, cwd: sb.project });
 }
 
 describe('merge_policy: human-approval', () => {
@@ -193,7 +209,7 @@ describe('policy resolution', () => {
     writeProfile(sb.project, { merge_policy: 'autonomous' });
     const worktree = join(sb.project, '.claude', 'worktrees', 'agent-1', 'src');
     mkdirSync(worktree, { recursive: true });
-    const r = await runHook(GATE, { agent_type: IC, cwd: worktree, tool_name: 'Bash', tool_input: { command: 'gh pr merge 1' } }, { env: sb.env });
+    const r = verdict({ agent: IC, cwd: worktree, tool: 'Bash', input: { command: 'gh pr merge 1' } });
     assert.equal(r.status, 0);
   });
 });
@@ -245,16 +261,19 @@ describe('who is gated', () => {
 });
 
 describe('failing safe', () => {
-  test('a broken payload never blocks work', async (t) => {
+  test('a malformed call never blocks work', async (t) => {
     const sb = sandbox(t);
-    for (const payload of ['', 'not json', '{"agent_type":', '[]', 'null']) {
-      assert.equal((await runHook(GATE, payload, { env: sb.env })).status, 0, JSON.stringify(payload));
+    for (const input of [null, undefined, 'gh pr merge 1', [], 42, { command: 42 }, { command: null }]) {
+      assert.equal(verdict({ agent: LEAD, tool: 'Bash', input, cwd: sb.project }).status, 0, JSON.stringify(input));
+    }
+    for (const call of [{}, { agent: LEAD }, { tool: 'Bash' }]) {
+      assert.equal(verdict(call).status, 0, JSON.stringify(call));
     }
   });
 
   test('a call with no tool input is allowed', async (t) => {
     const sb = sandbox(t);
-    const r = await runHook(GATE, { agent_type: LEAD, cwd: sb.project, tool_name: 'Bash' }, { env: sb.env });
+    const r = verdict({ agent: LEAD, cwd: sb.project, tool: 'Bash' });
     assert.equal(r.status, 0);
   });
 });
@@ -298,7 +317,7 @@ describe('merge_policy: autonomous requires a passing QA run', () => {
     push();
     return { qaReport, push, env: { ...sb.env, MERGE_GATE_GH: ghStub } };
   }
-  const run = (sb, r, command) => runHook(GATE, { agent_type: LEAD, cwd: sb.project, tool_name: 'Bash', tool_input: { command } }, { env: r.env });
+  const run = (sb, r, command) => verdict({ agent: LEAD, cwd: sb.project, tool: 'Bash', input: { command } }, r.env);
   const PASS = ['# QA run', 'Verdict: Pass', 'Tested SHA: <sha>'];
 
   test('a Pass for the code being merged lets the merge through', async (t) => {
@@ -412,7 +431,7 @@ describe('merge_policy: autonomous requires a passing QA run', () => {
     const plain = join(sb.root, 'plain');
     mkdirSync(plain);
     writeProfile(plain, { merge_policy: 'autonomous' });
-    assert.equal((await runHook(GATE, { agent_type: LEAD, cwd: plain, tool_name: 'Bash', tool_input: { command: 'gh pr merge 42' } }, { env: r.env })).status, 0);
+    assert.equal(verdict({ agent: LEAD, cwd: plain, tool: 'Bash', input: { command: 'gh pr merge 42' } }, r.env).status, 0);
   });
 
   test('a push to the trunk and non-merge commands are not subject to the QA check', async (t) => {

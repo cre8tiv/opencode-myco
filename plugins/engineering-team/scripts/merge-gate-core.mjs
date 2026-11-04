@@ -11,7 +11,7 @@
 // When the policy is `autonomous`, a PR merge is still blocked unless the PR's branch
 // carries a QA run report with a Pass verdict for the code being merged (see qaCheck).
 //
-// Two hosts call it: merge-gate.mjs (Claude Code hooks) and the OpenCode plugin.
+// The OpenCode plugin calls it from its tool hook.
 import { execFileSync } from 'node:child_process';
 import { profileKey } from './profile.mjs';
 

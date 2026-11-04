@@ -56,7 +56,7 @@ Agents don't pin a `tools:` list — a pinned list would have to name the host's
 
 ## Merge policy
 
-`merge_policy` in the profile frontmatter, enforced by `scripts/merge-gate.mjs`:
+`merge_policy` in the profile frontmatter, enforced by `scripts/merge-gate-core.mjs`, called from the OpenCode plugin:
 
 - **`human-approval`** (the default, and what a missing profile resolves to) — no agent may complete a merge. `gh pr merge`, `az repos pr ... completed`, and a direct push to `trunk_branch` are blocked. The lead hands off instead: PR summary comment, review request to the named human, notification, ticket left in its review state.
 - **`autonomous`** — agents may merge once every gate is green. For `gh pr merge` (and the REST merge endpoint) the gate checks it: the PR branch must carry a QA `report.md` under `.claude/qa/runs/` whose `Verdict:` is Pass (or Pass with caveats), with a `Tested SHA:` that is the branch head or followed only by QA files. Otherwise the merge is refused and the lead is told to run QA. If `gh` or `git` can't be queried, the merge is allowed, and pushes to the trunk and other tools' merges aren't checked.
@@ -70,9 +70,8 @@ The gate covers `gh`, `az repos` and direct trunk pushes. It's a guardrail again
 ```
 agents/                  five definitions, generic
 skills/init-team/        the setup interview
-hooks/hooks.json         merge-gate wiring, via ${CLAUDE_PLUGIN_ROOT}
 scripts/
-  merge-gate.mjs         merge policy enforcement
+  merge-gate-core.mjs    merge policy enforcement, called by the OpenCode plugin
   profile.mjs            reads the project profile's frontmatter
 templates/
   team/project.md        the profile /init-team fills in

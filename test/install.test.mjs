@@ -111,7 +111,7 @@ describe('install', () => {
     assert.equal(result.skills.length, 8);
     for (const id of result.agents) assert.ok(existsSync(join(target, 'agents', `${id}.md`)), id);
     for (const s of result.skills) assert.ok(existsSync(join(target, 'skills', s, 'SKILL.md')), s);
-    assert.ok(existsSync(join(target, 'myco', 'team-ops', 'scripts', 'friction.mjs')));
+    assert.ok(existsSync(join(target, 'myco', 'team-ops', 'scripts', 'friction-core.mjs')));
     assert.ok(existsSync(join(target, 'myco', 'design-team', 'templates', 'prd-template.md')));
     assert.ok(existsSync(join(target, 'plugins', 'myco', 'index.js')));
   });

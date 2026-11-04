@@ -5,9 +5,11 @@ import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { sandbox, collector, runNode, runHook, script, writeProfile, writeSession, assistant, startWork, usage, readJsonl, opsFile, attrMap } from './helpers.mjs';
+import { sandbox, collector, writeProfile, readJsonl, opsFile, attrMap } from './helpers.mjs';
 import { signalUrl, buildMetrics, buildEvent, eventName, exportSessions, exportEvent } from '../plugins/team-ops/scripts/otlp.mjs';
 import { appendUsage } from '../plugins/team-ops/scripts/usage-lib.mjs';
+import { recordEvent } from '../plugins/team-ops/scripts/capture-core.mjs';
+import { recordFriction } from '../plugins/team-ops/scripts/friction-core.mjs';
 
 const M = 1_000_000;
 const ENV_KEYS = ['TEAM_OPS_OTLP_ENDPOINT', 'TEAM_OPS_OTLP_HEADERS', 'TEAM_OPS_OTLP_RESOURCE_ATTRIBUTES', 'TEAM_OPS_OTLP_LOG_CONTENT'];
@@ -205,20 +207,29 @@ describe('exporting', () => {
   });
 });
 
-describe('through the real hooks', () => {
-  const LEAD = 'design-team:product-lead';
+describe('through the recorders', () => {
+  const AGENT = 'design-team/product-lead';
+
+  /** Points HOME at the sandbox, where the stream lives, and the exporter at the collector. */
+  function wired(t, sb, endpoint) {
+    const saved = { HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE };
+    process.env.HOME = sb.home;
+    process.env.USERPROFILE = sb.home;
+    if (endpoint) process.env.TEAM_OPS_OTLP_ENDPOINT = endpoint;
+    t.after(() => {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    });
+  }
 
   test('a friction report reaches the backend, tied to its work, without its text', async (t) => {
     const sb = sandbox(t);
     writeProfile(sb.project, { stream: 'alpha-stream' });
     const c = await collector(t);
-    writeSession({ home: sb.home, sessionId: 's-f', lead: LEAD, rows: [startWork(1, 'pkg/round-2')] });
-    const r = await runNode(script('team-ops', 'friction.mjs'), {
-      args: ['--agent', 'product-lead', '--kind', 'handoff', '--note', 'internal customer name Acme'],
-      cwd: sb.project,
-      env: { ...sb.env, CLAUDE_CODE_SESSION_ID: 's-f', TEAM_OPS_OTLP_ENDPOINT: c.url },
-    });
-    assert.equal(r.status, 0, r.stderr);
+    wired(t, sb, c.url);
+    await recordFriction({ cwd: sb.project, agent: AGENT, session: 's-f', work: 'pkg/round-2', kind: 'handoff', note: 'internal customer name Acme' });
     assert.equal(c.requests.length, 1);
     const rec = c.requests[0].body.resourceLogs[0].scopeLogs[0].logRecords[0];
     const a = attrMap(rec.attributes);
@@ -230,26 +241,11 @@ describe('through the real hooks', () => {
     assert.equal(readJsonl(opsFile(sb.home, 'alpha-stream', 'friction.jsonl'))[0].note, 'internal customer name Acme');
   });
 
-  test('a session end exports that session’s cumulative cost', async (t) => {
+  test('an unreachable backend does not fail the recorder or lose the local record', async (t) => {
     const sb = sandbox(t);
     writeProfile(sb.project, { stream: 'alpha-stream' });
-    const c = await collector(t);
-    const { transcriptPath } = writeSession({
-      home: sb.home, sessionId: 's-c', lead: LEAD,
-      rows: [startWork(1, 'pkg/round-1'), assistant({ at: 2, usage: usage({ input: M, output: 100_000 }) })],
-    });
-    await runHook(script('team-ops', 'usage.mjs'), { hook_event_name: 'SessionEnd', agent_type: LEAD, session_id: 's-c', transcript_path: transcriptPath, cwd: sb.project }, { env: { ...sb.env, TEAM_OPS_OTLP_ENDPOINT: c.url } });
-    assert.equal(c.requests.length, 1);
-    assert.equal(c.requests[0].path, '/v1/metrics');
-    const points = c.requests[0].body.resourceMetrics[0].scopeMetrics[0].metrics[0].sum.dataPoints;
-    assert.ok(Math.abs(points[0].asDouble - 6) < 0.01);
-  });
-
-  test('an unreachable backend does not change a hook’s exit status or lose the local record', async (t) => {
-    const sb = sandbox(t);
-    writeProfile(sb.project, { stream: 'alpha-stream' });
-    const r = await runHook(script('team-ops', 'capture.mjs'), { hook_event_name: 'PostToolUseFailure', agent_type: 'engineering-team:ic-generalist', cwd: sb.project, tool_name: 'Bash', tool_input: { command: 'x' } }, { env: { ...sb.env, TEAM_OPS_OTLP_ENDPOINT: 'http://127.0.0.1:1' } });
-    assert.equal(r.status, 0);
+    wired(t, sb, 'http://127.0.0.1:1');
+    await recordEvent({ event: 'PostToolUseFailure', agent: 'engineering-team/ic-generalist', cwd: sb.project, tool: 'shell', input: { command: 'x' } });
     assert.equal(readJsonl(opsFile(sb.home, 'alpha-stream', 'events.jsonl')).length, 1);
   });
 });

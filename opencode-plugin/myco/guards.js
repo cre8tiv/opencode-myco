@@ -1,5 +1,5 @@
-// The guards, as OpenCode runs them: before every tool call, ask the same decision code
-// the Claude Code hooks use, and block by throwing, which stops the call and hands the
+// The guards, as OpenCode runs them: before every tool call, ask the teams' decision code,
+// and block by throwing, which stops the call and hands the
 // message back to the agent.
 //
 // The decisions live with their teams (team-ops/scripts/coach-guard-core.mjs,

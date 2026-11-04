@@ -122,8 +122,7 @@ describe('cost.mjs over OpenCode', () => {
     const { report } = setup(t);
     const r = await report();
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.json.source, 'opencode');
-    assert.equal(r.json.backfilled_sessions, 1);
+    assert.equal(r.json.refreshed_sessions, 1);
     near(group(r.json, 'order-exceptions/round-1').usd, 6); // 1M in + 100K out on opus
     near(group(r.json, 'order-exceptions/round-2').usd, 12.02); // sonnet: 1M in + 1M out, plus the 10K internal input
     near(group(r.json, 'order-exceptions/arch').usd, 20); // architect: 1M out on opus
@@ -140,7 +139,7 @@ describe('cost.mjs over OpenCode', () => {
     const { report, db, write } = setup(t);
     const first = await report();
     const second = await report();
-    assert.equal(second.json.backfilled_sessions, 0);
+    assert.equal(second.json.refreshed_sessions, 0);
     assert.equal(second.json.total_usd, first.json.total_usd);
 
     db.sessions[0].time.updated += 60_000;
@@ -148,7 +147,7 @@ describe('cost.mjs over OpenCode', () => {
     db.sessions[0].tokens.output += M / 10;
     write(db);
     const third = await report();
-    assert.equal(third.json.backfilled_sessions, 1);
+    assert.equal(third.json.refreshed_sessions, 1);
     near(third.json.total_usd, first.json.total_usd + 2.02, 'a snapshot supersedes the last: the new output, and the internal input now priced at the last model');
   });
 
@@ -185,27 +184,6 @@ describe('cost.mjs over OpenCode', () => {
     assert.equal(group(r.json, 'order-exceptions/arch'), undefined);
   });
 
-  test('an empty report names the source it read', async (t) => {
-    const { sb, env } = setup(t, (db) => ({ ...db, sessions: [] }));
-    const open = await runNode(COST, { cwd: sb.project, env });
-    assert.match(open.stdout, /OpenCode sessions/);
-    const claude = await runNode(COST, { args: ['--source', 'claude'], cwd: sb.project, env });
-    assert.match(claude.stdout, /team lead session ends/);
-    assert.doesNotMatch(claude.stdout, /OpenCode sessions/);
-  });
-
-  test('an agent given its own worktree (no parent session) is counted once, under its lead', async (t) => {
-    const { report } = setup(t, (db) => {
-      // As delegate creates it: top-level, linked to its lead by metadata, named by the lead's delegate call.
-      db.sessions[1] = { ...db.sessions[1], parentID: undefined, metadata: { mycoParent: 'ses_lead' } };
-      db.contexts.ses_lead = db.contexts.ses_lead.map((m) => ({ ...m, content: m.content.map((c) => (c.name === 'subagent' ? { ...c, name: 'delegate' } : c)) }));
-      return db;
-    });
-    const r = await report(['--by', 'session']);
-    assert.deepEqual(r.json.groups.map((g) => g.key), ['ses_lead']);
-    near(group(r.json, 'ses_lead').usd, 38.02);
-  });
-
   test('a model with no list price is shown as unpriced, not as free', async (t) => {
     const { report } = setup(t, (db) => {
       db.contexts.ses_lead = [{ ...db.contexts.ses_lead[1], model: { id: 'qwen3-coder', providerID: 'ollama' } }, ...db.contexts.ses_lead.slice(2)];
@@ -222,11 +200,5 @@ describe('cost.mjs over OpenCode', () => {
     assert.equal(r.status, 0);
     assert.ok(r.json.refresh_error, 'the failure is reported');
     near(r.json.total_usd, 38.02);
-  });
-
-  test('an unknown --source is refused', async (t) => {
-    const { sb, env } = setup(t);
-    const r = await runNode(COST, { args: ['--source', 'nope'], cwd: sb.project, env });
-    assert.equal(r.status, 2);
   });
 });

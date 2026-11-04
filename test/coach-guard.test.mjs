@@ -3,14 +3,16 @@
 // habit, and the things the coach legitimately does that must keep working.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { runHook, script } from './helpers.mjs';
+import { coachViolation, coachMessage } from '../plugins/team-ops/scripts/coach-guard-core.mjs';
 
-const GUARD = script('team-ops', 'coach-guard.mjs');
 const COACH = 'team-ops:agent-coach';
 
 /** @param {{tool: string, input: object, agent?: string | null}} call */
-const guard = ({ tool, input, agent = COACH }) =>
-  runHook(GUARD, { ...(agent ? { agent_type: agent } : {}), tool_name: tool, tool_input: input });
+const guard = ({ tool, input, agent = COACH }) => {
+  const offending = coachViolation({ agent: agent || undefined, tool, input });
+  // 2 and the message to the agent when the call is blocked: what a host adapter turns the answer into.
+  return offending ? { status: 2, stderr: coachMessage(offending) } : { status: 0, stderr: '' };
+};
 
 /** @param {[string, string, string][]} cases [tool, key, value] */
 function table(cases, expectStatus) {
@@ -152,14 +154,17 @@ describe('who is guarded', () => {
 });
 
 describe('failing safe', () => {
-  test('a broken payload never blocks work', async () => {
-    for (const payload of ['', 'not json', '{"agent_type":"team-ops:agent-coach",', 'null']) {
-      assert.equal((await runHook(GUARD, payload)).status, 0, JSON.stringify(payload));
+  test('a malformed call never blocks work', async () => {
+    for (const input of [null, undefined, 'rm -rf x', [], 42, { command: 42 }, { file_path: null }]) {
+      assert.equal((await guard({ tool: 'Bash', input })).status, 0, JSON.stringify(input));
+    }
+    for (const call of [{}, { agent: COACH }, { tool: 'Write' }]) {
+      assert.equal((await guard({ tool: undefined, input: undefined, ...call })).status, 0, JSON.stringify(call));
     }
   });
 
   test('a coach call with no tool input is allowed', async () => {
-    const r = await runHook(GUARD, { agent_type: COACH, tool_name: 'Bash' });
+    const r = await guard({ tool: 'Bash', input: undefined });
     assert.equal(r.status, 0);
   });
 });
