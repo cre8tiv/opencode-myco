@@ -3,15 +3,12 @@
 import { readFileSync } from 'node:fs';
 
 const args = process.argv.slice(2);
-const params = {};
-let i = args.indexOf('--standalone') + 1;
-while (args[i] === '--param') {
-  const [k, ...v] = args[i + 1].split('=');
-  params[k] = v.join('=');
-  i += 2;
-}
-const [method, path] = args.slice(i);
-if (args[0] !== 'api' || method !== 'GET') {
+// Like the real one, filters are query parameters in the path; --param is for path templates and filters nothing.
+const i = args.indexOf('--standalone') + 1;
+const [method, target] = args.slice(i);
+const [path, query = ''] = (target || '').split('?');
+const params = Object.fromEntries(new URLSearchParams(query));
+if (args[0] !== 'api' || method !== 'GET' || args.includes('--param')) {
   console.error('fake opencode: unsupported ' + args.join(' '));
   process.exit(2);
 }

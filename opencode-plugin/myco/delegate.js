@@ -53,10 +53,22 @@ const baseOf = (dir) => {
   }
 };
 
-/** True when an isolated worktree holds nothing worth keeping: no changes and no new commits. */
+/**
+ * True when an isolated worktree holds nothing worth keeping: no uncommitted changes, and either no new commits or a
+ * detached HEAD at a commit some branch already has (a reviewer that checked out the commit it was reviewing).
+ */
 function untouched(dir, base) {
   try {
-    return !git(dir, 'status', '--porcelain') && base !== undefined && git(dir, 'rev-parse', 'HEAD') === base;
+    if (git(dir, 'status', '--porcelain') || base === undefined) return false;
+    const head = git(dir, 'rev-parse', 'HEAD');
+    if (head === base) return true;
+    let detached = false;
+    try {
+      git(dir, 'symbolic-ref', '-q', 'HEAD');
+    } catch {
+      detached = true; // symbolic-ref fails when HEAD is not on a branch
+    }
+    return detached && git(dir, 'for-each-ref', '--contains', head, 'refs/heads').length > 0;
   } catch {
     return false;
   }
@@ -91,6 +103,22 @@ export async function registerDelegate(ctx, work) {
           branch: { type: 'string', description: 'With isolated: create and switch to this branch in the worktree.' },
         },
         required: ['agent', 'description', 'prompt'],
+        additionalProperties: false,
+      },
+      // The host refuses a result that carries `output` when the tool declares no output schema, and does so as a
+      // defect after the agent has already run: the work is done and the lead never hears of it. Keep this in step
+      // with what execute returns (delegate-opencode.test.mjs checks it).
+      output: {
+        type: 'object',
+        properties: {
+          sessionID: { type: 'string' },
+          status: { type: 'string' },
+          output: { type: 'string', description: "The agent's final report." },
+          worktree: { type: 'string', description: 'Where the isolated agent worked, when it changed anything.' },
+          branch: { type: 'string' },
+          worktreeRemoved: { type: 'boolean' },
+        },
+        required: ['sessionID', 'status', 'output'],
         additionalProperties: false,
       },
       async execute(input, context) {
@@ -169,7 +197,8 @@ export async function registerDelegate(ctx, work) {
 
           const report = finalText(messages) || '(the agent finished without a report)';
           const kept = worktree ? !(await removeIfUntouched(iso)) : false;
-          const out = { sessionID, status: 'completed', output: report, ...(worktree ? { worktree: kept ? worktree : undefined, branch: kept ? input.branch : undefined, worktreeRemoved: !kept } : {}) };
+          // No undefined values: the output is encoded against the schema above.
+        const out = { sessionID, status: 'completed', output: report, ...(worktree ? { ...(kept ? { worktree, ...(input.branch ? { branch: input.branch } : {}) } : {}), worktreeRemoved: !kept } : {}) };
           const note = worktree ? (kept ? `\nworktree: ${worktree}${input.branch ? `\nbranch: ${input.branch}` : ''}` : '\nThe agent changed nothing, so its worktree was removed.') : '';
           return {
             output: out,
