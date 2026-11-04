@@ -360,7 +360,7 @@ Start with the doctor. Most of what follows it reports directly.
 
 **Tracker transitions fail silently.** The MCP tool prefix recorded in `project.md` doesn't match the server actually available in your session. Check the real prefix and correct the profile.
 
-**An IC's changes land in the wrong place.** Worktree isolation isn't ported yet (see [Status](#status)); ICs work in the checkout the session runs in.
+**An IC's changes land in the wrong place.** ICs and QA get their own worktree only when the lead delegates with `isolated: true`; a lead that used `subagent` instead put the agent in the shared checkout. Check the lead's call, and that the `delegate` feature is active in `myco doctor`.
 
 **A reinstall reverted a change I made to an agent.** Expected: agent definitions are installed content. Project-specific behavior belongs in `.claude/team/project.md`; if the change is general, send it upstream.
 
@@ -373,6 +373,8 @@ node scripts/drift.mjs check                        # shared files still match u
 node scripts/drift.mjs report                       # what changed upstream since the recorded commit
 node scripts/drift.mjs release <path> --reason "…"  # a shared file now differs on purpose, with why
 ```
+
+This fork no longer runs under Claude Code: the hook scripts and `hooks.json`, and the code that read Claude's transcripts, are gone (use upstream myco there). Upstream changes to those files will show as a delete/modify conflict to resolve by keeping them deleted; the decision code they called (`*-core.mjs`) is kept and shared by the OpenCode plugin.
 
 The agent sources keep their Claude Code frontmatter, so they stay mergeable too; the installer rewrites it into OpenCode's (`mode`, `permission`, `model`) and drops every Claude-only key, because OpenCode forwards unknown keys to the model provider.
 

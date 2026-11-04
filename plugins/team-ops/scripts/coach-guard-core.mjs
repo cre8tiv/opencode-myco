@@ -11,10 +11,10 @@
 // acceptable. This is a guard against accidents, not a sandbox: a script that writes
 // files from inside an interpreter (`node -e`, `python -c`) isn't inspected.
 //
-// Two hosts call it: coach-guard.mjs (Claude Code hooks) and the OpenCode plugin. They
-// name tools and fields differently, so both spellings are understood here. Team agents
-// arrive namespaced ("team-ops:agent-coach" in Claude Code, "team-ops/agent-coach" in
-// OpenCode), so the role is matched after the last separator; a bare name matches too.
+// The OpenCode plugin calls it from its tool hook. It names tools and fields its own way
+// (shell, edit, path); Claude Code's spellings (Bash, Write, file_path) are still understood, as
+// are namespaced agents ("team-ops/agent-coach", or "team-ops:agent-coach"): the role is matched
+// after the last separator, and a bare name matches too.
 import { posix } from 'node:path';
 
 

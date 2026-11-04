@@ -79,17 +79,15 @@ skills/log-friction/SKILL.md
 skills/start-work/SKILL.md
 skills/cost-report/SKILL.md
 skills/init-knowledge/SKILL.md
-hooks/hooks.json            capture + coach guard, via ${CLAUDE_PLUGIN_ROOT}
 scripts/
-  capture.mjs               hook sink
-  friction.mjs              self-report writer, called by the skill
-  usage.mjs                 token usage snapshot, on SubagentStop and SessionEnd
-  usage-lib.mjs             transcript parsing, attribution, pricing
+  capture-core.mjs          writes an event record, called by the OpenCode plugin
+  friction-core.mjs         writes a friction record, called by the log_friction tool
+  usage-opencode.mjs        turns OpenCode sessions into usage records
+  usage-lib.mjs             the usage log, attribution helpers, pricing
   cost.mjs                  the cost report, called by cost-report
-  context.mjs               the fields every record shares: agent, session, work
   otlp.mjs                  OpenTelemetry export: cost metrics, events
   prices.json               API list prices per model
-  coach-guard.mjs           propose-only enforcement
+  coach-guard-core.mjs      propose-only enforcement, called by the OpenCode plugin
   stream.mjs, profile.mjs   stream resolution from the team profiles
 templates/
   report-template.md        the report's fixed format

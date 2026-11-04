@@ -123,11 +123,12 @@ For a project with no web surface, skip this entirely — don't make a SQL or CL
 
 ```sh
 # the merge gate matches the policy you just recorded
-#   human-approval -> exit 2   |   autonomous -> exit 0
-echo '{"agent_type":"engineering-team:tech-lead","tool_name":"Bash","cwd":"'"$PWD"'","tool_input":{"command":"gh pr merge 1"}}' | node "$MYCO_ROOT/engineering-team/scripts/merge-gate.mjs"; echo "exit=$?"
+#   human-approval -> blocked   |   autonomous -> allowed
+gate() { node --input-type=module -e 'import { pathToFileURL } from "node:url"; const m = await import(pathToFileURL(process.argv[1]).href); console.log(m.mergeVerdict({ agent: process.argv[2], tool: "shell", input: { command: process.argv[3] }, cwd: process.cwd() }) ? "blocked" : "allowed")' "$MYCO_ROOT/engineering-team/scripts/merge-gate-core.mjs" "$@"; }
+gate engineering-team/tech-lead "gh pr merge 1"
 
-# ...and an IC keeping its branch current is never blocked (expect exit 0)
-echo '{"agent_type":"engineering-team:ic-generalist","tool_name":"Bash","cwd":"'"$PWD"'","tool_input":{"command":"git merge origin/main"}}' | node "$MYCO_ROOT/engineering-team/scripts/merge-gate.mjs"; echo "exit=$?"
+# ...and an IC keeping its branch current is never blocked (expect allowed)
+gate engineering-team/ic-generalist "git merge origin/main"
 ```
 
 Run the merge-gate check and **say the result out loud to the user** — it's the one place where a typo in the profile silently changes how much autonomy the team has.

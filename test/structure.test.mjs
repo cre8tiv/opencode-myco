@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join, relative, dirname, resolve, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { ROOT, sandbox, runHook } from './helpers.mjs';
+import { ROOT, sandbox } from './helpers.mjs';
 
 const PLUGINS_DIR = join(ROOT, 'plugins');
 const read = (p) => readFileSync(p, 'utf8');
@@ -73,44 +73,9 @@ describe('manifests', () => {
   });
 });
 
-describe('hooks', () => {
-  const withHooks = plugins.filter((n) => existsSync(join(PLUGINS_DIR, n, 'hooks', 'hooks.json')));
-  assert.ok(withHooks.length >= 2);
-
-  for (const name of withHooks) {
-    const hooks = readJson(join(PLUGINS_DIR, name, 'hooks', 'hooks.json')).hooks;
-    /** @type {{event: string, command: string}[]} */
-    const entries = Object.entries(hooks).flatMap(([event, groups]) => groups.flatMap((g) => g.hooks.map((h) => ({ event, ...h }))));
-
-    test(`${name}: every hook runs a script that exists, through the plugin root`, () => {
-      assert.ok(entries.length > 0);
-      for (const h of entries) {
-        assert.equal(h.type, 'command', h.event);
-        const m = h.command.match(/\$\{CLAUDE_PLUGIN_ROOT\}\/(scripts\/[\w.-]+\.mjs)/);
-        assert.ok(m, `${h.event}: ${h.command} does not run a script under \${CLAUDE_PLUGIN_ROOT}/scripts/`);
-        assert.ok(existsSync(join(PLUGINS_DIR, name, m[1])), `${h.event}: ${m[1]} is missing`);
-      }
-    });
-
-    test(`${name}: every hook script survives an empty event`, async (t) => {
-      // Hooks run on every tool call of every session. One that throws on an event it
-      // didn't expect, or hangs, would break or stall work it has nothing to do with.
-      const sb = sandbox(t);
-      const scripts = [...new Set(entries.map((h) => h.command.match(/scripts\/([\w.-]+\.mjs)/)[1]))];
-      for (const s of scripts) {
-        for (const payload of ['{}', '']) {
-          const r = await runHook(join(PLUGINS_DIR, name, 'scripts', s), payload, { cwd: sb.project, env: sb.env });
-          assert.equal(r.status, 0, `${s} exited ${r.status} for ${JSON.stringify(payload)}: ${r.stderr}`);
-        }
-      }
-    });
-  }
-
-  test('the enforcement hooks gate every tool call rather than a subset', () => {
-    // No matcher means "all tools": a matcher here would let an unlisted tool bypass the gate.
-    const gate = readJson(join(PLUGINS_DIR, 'engineering-team', 'hooks', 'hooks.json')).hooks.PreToolUse;
-    const guard = readJson(join(PLUGINS_DIR, 'team-ops', 'hooks', 'hooks.json')).hooks.PreToolUse;
-    for (const groups of [gate, guard]) for (const g of groups) assert.equal(g.matcher, undefined);
+describe('no Claude Code hooks', () => {
+  test('no plugin ships a hooks manifest: enforcement and capture are the OpenCode plugin\'s', () => {
+    for (const name of plugins) assert.equal(existsSync(join(PLUGINS_DIR, name, 'hooks')), false, `${name}/hooks`);
   });
 });
 

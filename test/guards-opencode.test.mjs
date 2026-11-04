@@ -1,5 +1,5 @@
-// The guards as OpenCode runs them. The decisions are tested through the Claude Code hook
-// scripts (coach-guard.test.mjs, merge-gate.test.mjs) because they share one core; these
+// The guards as OpenCode runs them. The decisions are tested directly
+// (coach-guard.test.mjs, merge-gate.test.mjs); these
 // cover what is specific to the OpenCode side: its tool names and input fields, who counts
 // as a team agent, that a block is a thrown error, and that nothing here can block work
 // because the guard itself broke. Event shapes are the ones recorded from a live run.

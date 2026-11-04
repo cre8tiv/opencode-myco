@@ -1,7 +1,0 @@
-{
-  "hooks": {
-    "PreToolUse": [
-      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/merge-gate.mjs\"" }] }
-    ]
-  }
-}

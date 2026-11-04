@@ -2,19 +2,14 @@
 // Cost report over the stream's usage log.
 //
 //   node cost.mjs [--work <prefix>] [--since <YYYY-MM-DD>] [--by work|agent|model|day|session]
-//                 [--source opencode|claude] [--json] [--no-backfill] [--export]
+//                 [--json] [--no-refresh] [--export]
 //
 // --work matches a work tag by prefix, so "order-exceptions" covers every round and
 // phase of that package, and a ticket key covers that ticket. Before reporting, it
-// brings the usage log up to date from where the sessions are kept. For OpenCode (the
-// default) that is its session store, asked through `opencode api`; sessions that changed
-// since their last record are read again. With --source claude it re-snapshots Claude
-// Code transcripts that changed since their last snapshot, while those still exist.
-import { homedir } from 'node:os';
-import { join, dirname } from 'node:path';
-import { existsSync, statSync, readdirSync } from 'node:fs';
+// brings the usage log up to date from OpenCode's session store, asked through
+// `opencode api`; sessions that changed since their last record are read again.
 import { streamDir, resolveStreamName } from './stream.mjs';
-import { snapshotSession, appendUsage, currentUsage, costOf, pricesAsOf, findTranscript, readJsonl } from './usage-lib.mjs';
+import { currentUsage, costOf, pricesAsOf } from './usage-lib.mjs';
 import { exportSessions } from './otlp.mjs';
 import { refreshFromOpenCode } from './usage-opencode.mjs';
 
@@ -32,75 +27,28 @@ function parseArgs(argv) {
   return o;
 }
 
-/**
- * Re-snapshots sessions whose transcripts changed after their latest snapshot, or that
- * were never snapshotted: a headless run killed before SessionEnd, a session still
- * open. Sessions are the ones the team event stream or the usage log knows about.
- * @param {string} dir stream directory
- * @returns {string[]} sessions updated
- */
-function backfill(dir) {
-  const events = join(dir, 'events.jsonl');
-  const usage = currentUsage(dir);
-  /** @type {Map<string, string>} */
-  const lastSnap = new Map();
-  for (const r of usage) if (!lastSnap.has(r.session) || r.snap > /** @type {string} */ (lastSnap.get(r.session))) lastSnap.set(r.session, r.snap);
-  const sessions = new Set([...lastSnap.keys(), ...(existsSync(events) ? readJsonl(events).map((r) => r.session).filter(Boolean) : [])]);
-  const projects = join(homedir(), '.claude', 'projects');
-  /** @type {string[]} */
-  const updated = [];
-  for (const s of sessions) {
-    const t = findTranscript(projects, s);
-    if (!t) continue;
-    const snap = lastSnap.get(s);
-    if (snap && newestChange(t, s) <= Date.parse(snap)) continue;
-    // A lead session records the agent it ran as.
-    const setting = readJsonl(t).find((r) => r.type === 'agent-setting');
-    const recs = snapshotSession({ transcriptPath: t, sessionId: s, leadAgent: setting?.agentSetting });
-    appendUsage(dir, recs);
-    if (recs.length) updated.push(s);
-  }
-  return updated;
-}
-
-/** @param {string} transcript @param {string} sessionId @returns {number} newest mtime of the session's transcripts */
-function newestChange(transcript, sessionId) {
-  let t = statSync(transcript).mtimeMs;
-  const sub = join(dirname(transcript), sessionId, 'subagents');
-  if (existsSync(sub)) for (const f of readdirSync(sub)) t = Math.max(t, statSync(join(sub, f)).mtimeMs);
-  return t;
-}
-
 const usd = (n) => (n === null ? 'unpriced' : `$${n.toFixed(2)}`);
 const mtok = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n));
 
 const opts = parseArgs(process.argv.slice(2));
 const dir = streamDir(process.cwd());
 const stream = resolveStreamName(process.cwd());
-const source = String(opts.source || 'opencode');
-if (source !== 'opencode' && source !== 'claude') {
-  console.error(`Unknown --source ${source}: use opencode or claude.`);
-  process.exit(2);
-}
 /** @type {string[]} */
 let updated = [];
 /** @type {string[]} */
 let unreadable = [];
 let unreadableChildren = 0;
 let refreshError = '';
-if (!opts['no-backfill']) {
-  if (source === 'claude') updated = backfill(dir);
-  else {
-    try {
-      ({ updated, failed: unreadable, unreadableChildren } = refreshFromOpenCode({ dir, cwd: process.cwd() }));
-    } catch (e) {
-      // Report what was recorded already, and say why it may be stale.
-      refreshError = e instanceof Error ? e.message : String(e);
-    }
+if (!opts['no-refresh']) {
+  try {
+    ({ updated, failed: unreadable, unreadableChildren } = refreshFromOpenCode({ dir, cwd: process.cwd() }));
+  } catch (e) {
+    // Report what was recorded already, and say why it may be stale.
+    refreshError = e instanceof Error ? e.message : String(e);
   }
 }
 const filled = updated.length;
-// Backfilled sessions are exported like hook snapshots; --export sends every session,
+// Refreshed sessions are exported as they are recorded; --export sends every session,
 // to seed a newly configured backend with the history.
 const toExport = opts.export ? new Set(currentUsage(dir).map((r) => r.session)) : updated;
 const exportResult = await exportSessions(dir, stream, toExport);
@@ -146,7 +94,7 @@ const total = list.reduce((s, g) => s + g.cost, 0);
 
 if (opts.json) {
   console.log(JSON.stringify({
-    stream, by, work: prefix || null, since: since || null, prices_as_of: pricesAsOf(), backfilled_sessions: filled, source, refresh_error: refreshError || null, unreadable_sessions: unreadable.length + unreadableChildren, export: exportResult,
+    stream, by, work: prefix || null, since: since || null, prices_as_of: pricesAsOf(), refreshed_sessions: filled, refresh_error: refreshError || null, unreadable_sessions: unreadable.length + unreadableChildren, export: exportResult,
     total_usd: Number(total.toFixed(4)),
     groups: list.map((g) => ({ key: g.key, usd: Number(g.cost.toFixed(4)), unpriced_models: g.unpriced, sessions: g.sessions.size, output_tokens: g.output, input_tokens: g.input_total, first: g.first, last: g.last,
       by_agent: Object.fromEntries([...g.agents].sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, Number(v.toFixed(4))])) })),
@@ -154,9 +102,9 @@ if (opts.json) {
 } else {
   const title = prefix ? `Cost of ${prefix}` : 'Cost';
   console.log(`# ${title}, by ${by}\n`);
-  console.log(`Stream \`${stream}\`${since ? `, since ${since}` : ''}. API-equivalent estimate at list prices as of ${pricesAsOf()}; a subscription bills differently.${filled ? ` Refreshed ${filled} session(s) from ${source === 'claude' ? 'transcripts' : 'OpenCode'}.` : ''}${refreshError ? ` Could not refresh from OpenCode (${refreshError}); showing what was recorded.` : ''}${unreadable.length + unreadableChildren ? ` ${unreadable.length + unreadableChildren} session(s) could not be read.` : ''}${exportResult?.error ? ` OTLP export failed: ${exportResult.error}.` : exportResult?.exported ? ` Exported ${exportResult.exported} session(s) to OTLP.` : ''}\n`);
+  console.log(`Stream \`${stream}\`${since ? `, since ${since}` : ''}. API-equivalent estimate at list prices as of ${pricesAsOf()}; a subscription bills differently.${filled ? ` Refreshed ${filled} session(s) from OpenCode.` : ''}${refreshError ? ` Could not refresh from OpenCode (${refreshError}); showing what was recorded.` : ''}${unreadable.length + unreadableChildren ? ` ${unreadable.length + unreadableChildren} session(s) could not be read.` : ''}${exportResult?.error ? ` OTLP export failed: ${exportResult.error}.` : exportResult?.exported ? ` Exported ${exportResult.exported} session(s) to OTLP.` : ''}\n`);
   if (!list.length) {
-    console.log(source === 'claude' ? 'No usage recorded yet. Usage is captured when a team lead session ends and when each team agent finishes.' : 'No usage recorded yet. Usage is read from the OpenCode sessions of team agents (agents named team/role) in this project.');
+    console.log('No usage recorded yet. Usage is read from the OpenCode sessions of team agents (agents named team/role) in this project.');
   } else {
     console.log(`| ${by === 'work' ? 'Work' : by[0].toUpperCase() + by.slice(1)} | Cost | Sessions | Output | Input (incl. cache) | Biggest spenders |`);
     console.log('| --- | ---: | ---: | ---: | ---: | --- |');

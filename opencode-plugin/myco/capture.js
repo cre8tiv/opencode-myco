@@ -1,6 +1,6 @@
-// The event stream, as OpenCode feeds it. Claude Code pushed team activity to a hook script;
-// OpenCode hands the plugin the same facts through its tool hooks and session hooks, already
-// knowing the agent and the session, so nothing is worked out from transcripts.
+// The event stream, as OpenCode feeds it: the host hands the plugin team activity through its
+// tool hooks and session hooks, already knowing the agent and the session, so nothing is
+// worked out from transcripts.
 //
 // What is recorded, under the event names the coach and the stream's consumers already use:
 //

@@ -8,13 +8,12 @@ description: Report what the agent teams' work cost — per design package and r
 team-ops keeps the token usage of every team lead session and team agent in this project's stream (`~/.claude/ops/<stream>/usage.jsonl`), tagged with the unit of work it was for. Each report first reads the OpenCode sessions that changed since they were last recorded, then reports on the log. This skill reports on it.
 
 ```sh
-node "$MYCO_ROOT/team-ops/scripts/cost.mjs" [--work <tag or prefix>] [--by work|agent|model|day|session] [--since <YYYY-MM-DD>] [--source opencode|claude] [--json] [--export]
+node "$MYCO_ROOT/team-ops/scripts/cost.mjs" [--work <tag or prefix>] [--by work|agent|model|day|session] [--since <YYYY-MM-DD>] [--json] [--export]
 ```
 
 - `--work` matches by prefix: `order-exceptions` covers every round and phase of that package; `order-exceptions/round-2` just that round; `CLOUD-123` that ticket.
 - `--by` groups the result; the default is by unit of work. Each row also names the biggest spenders within it.
 - `--json` for figures another agent will process (agent-coach uses it).
-- `--source` says where sessions are read from: `opencode` (the default) or `claude`, for Claude Code transcripts.
 - `--export` sends every recorded session to the team's OTel backend, once, after the export is first configured (`TEAM_OPS_OTLP_ENDPOINT`). Only when asked.
 
 Invoked with a bare tag or slug (`/cost-report order-exceptions`), treat it as `--work`.

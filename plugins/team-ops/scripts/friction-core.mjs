@@ -2,11 +2,10 @@
 // DID; only the agent knows its instructions were unclear, which makes this the
 // highest-signal input the analyst gets.
 //
-// Two callers: friction.mjs (the command line, which works out the agent's context from
-// Claude Code's transcripts) and the OpenCode plugin's log_friction tool (which is handed
-// the agent and session by the host). Each supplies who is reporting and what work they
-// are on; this adds the time and the working directory, and writes the record where the
-// event stream is, so friction, events and cost can be joined (context.mjs).
+// The OpenCode plugin's log_friction tool calls it, handed the agent and session by the host. It
+// supplies who is reporting and what work they are on; this adds the time and the working
+// directory, and writes the record where the event stream is, so friction, events and cost can
+// be joined.
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { streamDir, resolveStreamName } from './stream.mjs';

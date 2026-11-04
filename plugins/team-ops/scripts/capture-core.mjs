@@ -1,9 +1,7 @@
 // Writes one record to the project's event stream, free of any host.
 //
-// Two callers: capture.mjs (Claude Code hooks, which work out the agent's context from
-// transcripts) and the OpenCode plugin (which is handed the agent and session by the host).
-// Each decides which events are team activity and who produced them; this turns what they
-// know into a compact record, appends it where the coach reads it, and, when
+// The OpenCode plugin calls it: it is handed the agent and session by the host, decides which
+// events are team activity and who produced them, and this turns what it knows into a compact record, appends it where the coach reads it, and, when
 // TEAM_OPS_OTLP_ENDPOINT is set, exports it as an OTel event (otlp.mjs).
 //
 // Successful tool calls are deliberately not recorded: that would be a record per tool call

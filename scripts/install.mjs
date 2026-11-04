@@ -25,7 +25,7 @@
 // git worktree sees a project install only if .opencode is committed.
 //
 // The sources write the install root as $MYCO_ROOT (for example
-// $MYCO_ROOT/team-ops/scripts/friction.mjs). OpenCode doesn't substitute variables in
+// $MYCO_ROOT/team-ops/scripts/friction-core.mjs). OpenCode doesn't substitute variables in
 // agent or skill text, and a model's `read` call can't expand one, so this script writes
 // the real absolute path into the installed copies.
 //
