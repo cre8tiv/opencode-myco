@@ -1,7 +1,7 @@
 {
   "name": "team-ops",
   "displayName": "Team Ops",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "Observability for agent teams. Captures how every team's agents actually work through hooks, gives agents a skill to report process friction, and provides agent-coach, which analyzes it and proposes changes to team definitions and profiles. Installed automatically as a dependency of the team plugins.",
   "author": {
     "name": "cre8tiv",

@@ -2,24 +2,24 @@
 
 Observability for agent teams. It captures how every installed team's agents actually work, gives those agents a way to report friction they hit, and provides `agent-coach`, which analyzes both and proposes changes to the teams' definitions and profiles.
 
-You don't install it directly: `engineering-team` and `design-team` depend on it, so it's installed with either. It loads once however many teams depend on it.
+It is installed with the other teams, by `node scripts/install.mjs`; the myco plugin it provides loads once however many teams are installed.
 
 | Component | What it does |
 | --------- | ------------ |
 | `agent-coach` agent | Periodic analysis across every team. Writes one dated report of evidence-backed proposals. Propose-only, enforced. |
-| `log-friction` skill | Agents in any team call `team-ops:log-friction` to record process friction they can name. |
-| `init-knowledge` skill | Records the docs, knowledge bases and other codebases every team should consult in `.claude/team/knowledge.md`. Run by `/init-design` and `/init-team`; run it directly to refresh. |
+| `log-friction` skill | Agents in any team call the `log_friction` tool (the skill describes it) to record process friction they can name. |
+| `init-knowledge` skill | Records the docs, knowledge bases and other codebases every team should consult in `.claude/team/knowledge.md`. Run by `init-design` and `init-team`; ask for it directly to refresh. |
 | `start-work` skill | Leads name the unit of work they're on — `<package>/round-<n>`, `<package>/phase-<n>`, a ticket — so cost can be attributed to it. The call is the record. |
 | `cost-report` skill | What the work cost: per package and round, per ticket or phase, per agent, model or day. |
-| Hooks | Capture tool failures, permission denials, subagent start/stop, compaction, task lifecycle and session ends — tagged by namespaced agent — and snapshot token usage. |
+| myco plugin | Captures tool failures, permission denials, agent start/stop, compaction, errored runs and the end of each lead's run — tagged by namespaced agent — and provides the `start_work`, `log_friction` and `delegate` tools and the guards. |
 
 ## What gets captured
 
-**Hook events** — `PostToolUseFailure`, `PermissionDenied`, `SubagentStart`, `SubagentStop`, `PreCompact`, `TaskCreated`, `TaskCompleted`, `StopFailure`, `SessionEnd`. Every record carries the namespaced agent that produced it (`engineering-team:ic-generalist`, `design-team:architect`), so one stream covers every team. Only plugin agents are captured: plugins are installed per user, so the hooks fire in every session in the project, and a plain or orchestrating session's events aren't team activity. `SubagentStop` includes each agent's own final report. Successful tool calls are excluded; add `PostToolUse` to `hooks/hooks.json` temporarily for a full census.
+**Events** — `PostToolUseFailure`, `PermissionDenied`, `SubagentStart`, `SubagentStop`, `PreCompact`, `StopFailure`, `SessionEnd`. Every record carries the namespaced agent that produced it (`engineering-team/ic-generalist`, `design-team/architect`), so one stream covers every team. Only team agents are captured: the plugin runs in every session in the project, and a plain session's events aren't team activity. `SubagentStop` includes each agent's own final report, whether it was dispatched with `subagent` or `delegate`. Successful tool calls are excluded.
 
-**Friction self-reports** — logged by agents through the skill, with a kind: `instructions`, `tooling`, `permissions`, `scope`, `environment`, or `handoff`. The engineering tech lead logs every design problem it routes back to a design package as `handoff`; the design product lead logs specialist rework the same way. Those cross-team handoffs are the strongest signal the coach gets.
+**Friction self-reports** — logged by agents through the `log_friction` tool, with a kind: `instructions`, `tooling`, `permissions`, `scope`, `environment`, or `handoff`. The engineering tech lead logs every design problem it routes back to a design package as `handoff`; the design product lead logs specialist rework the same way. Those cross-team handoffs are the strongest signal the coach gets.
 
-**One shape** — every record, hook event, friction report and usage snapshot alike, carries the same fields: the session, the full agent name (read from the subagent's own metadata, since hooks don't always name it), and the unit of work — the tag the lead set with `start-work`, or an agent's own `[TICKET]`. Friction reports pick these up from the session automatically. So friction, failures and cost join on the work they belong to.
+**One shape** — every record, event, friction report and usage record alike, carries the same fields: the session, the full agent name, and the unit of work — the tag the lead set with `start_work`, or an agent's own `[TICKET]`. OpenCode tells the plugin the agent and session of every call, so nothing is worked out from transcripts. So friction, failures and cost join on the work they belong to.
 
 **Where it lives** — `~/.claude/ops/<stream>/events.jsonl` and `friction.jsonl`, outside the repo, so every git worktree converges on one stream. The stream name is `stream:` in `.claude/team/project.md`, or in `.claude/team/design.md` if there's no `project.md`, looked up by walking up from the working directory. **The profile must be committed**, or each worktree falls back to its own directory name.
 
@@ -27,7 +27,7 @@ You don't install it directly: `engineering-team` and `design-team` depend on it
 
 `.claude/team/knowledge.md` is the one list, shared by every team, of the documentation and knowledge sources agents consult before inferring from the code or from memory: product docs, API references, internal engineering docs, knowledge graphs, runbooks. Each row says how to reach the source (an MCP server, a URL, or a repo path), **what questions it answers**, which roles use it, how authoritative it is, and whether it needs authorizing.
 
-`/init-knowledge` builds it. It looks at every connected MCP server rather than a fixed list of types, so a server named after your product or an internal system gets found, and asks what each unrecognized one is for. It flags connectors that are configured but not authorized: authorization is per person, so each teammate authorizes once through claude.ai **Settings → Connectors** or `/mcp`.
+The `init-knowledge` skill builds it. It looks at every configured MCP server (`opencode mcp list`) rather than a fixed list of types, so a server named after your product or an internal system gets found, and asks what each unrecognized one is for. It flags servers that are configured but not authorized: authorization is per person, so each teammate runs `opencode mcp auth <server>` once.
 
 A *Codebases* section lists the repositories the work touches beyond this one, each with a role: *system* (code this work changes, living elsewhere), *contract* (built against, not changed) or *reference* (prior art). Each is identified by its remote URL and ref, with an optional local path relative to the repository root. All of them are read-only to agents. Design packages record the commit each was grounded at.
 
@@ -35,19 +35,17 @@ A *Codebases* section lists the repositories the work touches beyond this one, e
 
 ## Cost
 
-**What gets recorded.** When a team lead session ends, and when each team agent finishes, `scripts/usage.mjs` reads the session's transcripts — Claude Code keeps one per session and one per subagent, and every model response in them carries its token counts — and appends the totals per agent, unit of work and model to `~/.claude/ops/<stream>/usage.jsonl`. In a lead's session everything it spawned counts, built-in helpers like `Explore` included; elsewhere only team agents do.
+**Nothing is recorded as it happens.** OpenCode keeps every session, and each model response in it carries its agent, model and token counts. `cost-report` (`scripts/cost.mjs`) asks OpenCode (`opencode api`) for this project's sessions that changed since they were last recorded, reads them, and appends the totals per agent, unit of work and model to `~/.claude/ops/<stream>/usage.jsonl`. A lead's session counts for its own usage and everything it dispatched; elsewhere only team agents (`team/role`) count. A session OpenCode no longer has keeps what was recorded before.
 
-**Attribution.** Leads invoke `team-ops:start-work` with a tag as they go — the product lead per decision round (`order-exceptions/round-2`), the tech lead per phase or ticket. The call lands in the transcript with a timestamp, and the lead's usage after it, and that of agents it starts, belongs to that tag. The tech lead also prefixes each agent's task description with its ticket (`[CLOUD-123] …`), so tickets within a phase are costed separately.
+**Attribution.** Leads call the `start_work` tool with a tag as they go — the product lead per decision round (`order-exceptions/round-2`), the tech lead per phase or ticket. The call is in the lead's session with a time, and the lead's usage after it, and that of agents it starts, belongs to that tag. The tech lead also prefixes each agent's task description with its ticket (`[CLOUD-123] …`), so tickets within a phase are costed separately. A dispatched agent's session is found from its lead's `subagent` or `delegate` call.
 
-**Append-only, never overwritten.** Snapshots are cumulative per session and agent; the report reads only the latest of each, so a resumed session or a repeated hook supersedes rather than double-counts. A later round adds new records. Tokens are what's stored; dollars are computed at report time from `scripts/prices.json`, so correcting a price reprices history.
+**Append-only, never overwritten.** Records are cumulative per session and agent; the report reads only the latest of each, so reporting again supersedes rather than double-counts. Tokens are what's stored; dollars are computed at report time from `scripts/prices.json`, so correcting a price reprices history. A model with no price (a local one) is reported as unpriced, not as free.
 
-**Gaps it closes itself.** A headless run killed before its session ended never fires `SessionEnd`. The report re-reads any known session whose transcripts changed since its last snapshot, as long as Claude Code hasn't cleaned the transcripts up yet.
-
-**How accurate.** Input and cache token counts match Claude Code's own accounting exactly; output tokens per response run somewhat lower than its session totals, so estimates tend to be a few percent to ~10% low. They're API list prices — a Team or Max subscription bills differently.
+**How accurate.** Token counts are OpenCode's own. A session's total is a little larger than its messages: OpenCode's hidden agents (the one that titles a session) use tokens that appear in no message, so they are reported as an `internal` line to make totals match. Cache writes come as one number and are priced as 5-minute writes. Costs are API list prices — a subscription bills differently.
 
 ## Across a team
 
-Set `TEAM_OPS_OTLP_ENDPOINT` and everything above is also exported as OpenTelemetry, to any backend that takes OTLP: cost as metrics, next to Claude Code's own, and hook events and friction as OTel events. Free text — friction notes, agent reports, errors — stays local unless you opt in. [`telemetry/README.md`](telemetry/README.md) documents the format, turning both exports on, choosing a backend when you have none, and an example Docker stack with a Grafana dashboard.
+Set `TEAM_OPS_OTLP_ENDPOINT` and everything above is also exported as OpenTelemetry, to any backend that takes OTLP: cost as metrics, and events and friction as OTel events. Free text — friction notes, agent reports, errors — stays local unless you opt in. [`telemetry/README.md`](telemetry/README.md) documents the format, turning both exports on, choosing a backend when you have none, and an example Docker stack with a Grafana dashboard.
 
 ## Running the coach
 
@@ -55,15 +53,11 @@ Invoke `agent-coach` periodically — weekly, or after a batch of work — not p
 
 It writes `.claude/ops/reports/<date>-agent-health.md` in the fixed format from `templates/report-template.md`, and appends a row to `.claude/ops/reports/TRENDS.md`. Commit the reports: their history is how a later report tells whether an applied proposal actually moved anything.
 
-**Propose-only, enforced.** `scripts/coach-guard.mjs` runs on `PreToolUse` and lets the coach write only into `.claude/ops/reports/` and scratch locations. It reads everything and argues for changes in the report; a human applies them. The guard fails open — an internal error never blocks legitimate work.
-
-## Permission prompt on first friction log
-
-The skill runs `node ".../team-ops/scripts/friction.mjs" ...`. The first time an agent logs friction in a session you'll be asked to approve that command. Approve it for the session, or run `/fewer-permission-prompts` to add it to the project allowlist.
+**Propose-only, enforced.** The coach guard, in the myco plugin (`scripts/coach-guard-core.mjs`), runs before every tool call the coach makes and lets it write only into `.claude/ops/reports/` and scratch locations. It reads everything and argues for changes in the report; a human applies them. The guard fails open — an internal error never blocks legitimate work.
 
 ## Troubleshooting
 
-**The event stream is empty after real work.** Hooks load at session start — restart after installing. Check `node` is on PATH.
+**The event stream is empty after real work.** The plugin loads when OpenCode starts — restart after installing, and run `myco doctor` to see whether it loaded.
 
 **Telemetry lands in a directory named after the project folder.** `stream:` can't be read from either profile. Check the key is present in the frontmatter and the profile is committed.
 

@@ -1,7 +1,7 @@
 {
   "name": "design-team",
   "displayName": "Design Team",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Takes an idea to a decided design package — PRD, architecture, security review, tech design, and UX where there's a user surface — ready to hand to an engineering team. A product lead owns the conversation and the decision loop; specialists write their documents and return questions to it.",
   "author": {
     "name": "cre8tiv",

@@ -29,3 +29,20 @@ test('the leads dispatch with delegate, and the engineering lead isolates the ag
   assert.match(by['engineering-team/tech-lead'], /QA no `branch`/);
   assert.match(by['design-team/product-lead'], /`sessionID`/);
 });
+
+test('no skill, agent or team README sends the reader to a Claude Code command or tool', () => {
+  const dirs = readdirSync(join(ROOT, 'plugins'));
+  const files = dirs.flatMap((team) => {
+    const out = [join(ROOT, 'plugins', team, 'README.md')];
+    for (const sub of ['agents', 'skills']) {
+      try {
+        for (const e of readdirSync(join(ROOT, 'plugins', team, sub), { withFileTypes: true })) out.push(e.isDirectory() ? join(ROOT, 'plugins', team, sub, e.name, 'SKILL.md') : join(ROOT, 'plugins', team, sub, e.name));
+      } catch {
+        // The team has no such directory.
+      }
+    }
+    return out;
+  });
+  const claudeOnly = /(?<![\w.-])\/(?:mcp|plugin|init-team|init-design|init-knowledge|publish-review|cost-report)\b|ToolSearch|mcp__|claude --agent|\/design consent|\.mcp\.json|mcpServers/;
+  for (const f of files) assert.doesNotMatch(readFileSync(f, 'utf8'), claudeOnly, f);
+});

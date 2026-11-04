@@ -1,6 +1,6 @@
 ---
 name: init-team
-description: Set up the engineering-team agents for this project. Detects the project's stack, test commands, tracker and environments; asks only what it cannot infer; then writes .claude/team/project.md and scaffolds the QA and ops directories. Use after installing the engineering-team plugin, when the agents report that .claude/team/project.md is missing, or when the project's commands, tracker or environments have changed and the profile needs refreshing.
+description: Set up the engineering-team agents for this project. Detects the project's stack, test commands, tracker and environments; asks only what it cannot infer; then writes .claude/team/project.md and scaffolds the QA and ops directories. Use after installing the teams, when the agents report that .claude/team/project.md is missing, or when the project's commands, tracker or environments have changed and the profile needs refreshing.
 ---
 
 # init-team
@@ -17,11 +17,11 @@ Work out as much as possible from the repo, and note your confidence in each:
 - **Verification commands** — the `scripts` block, `Makefile` targets, or the CI workflow files under `.github/workflows` or `azure-pipelines.yml`. **CI config is the most reliable source**: it names the commands that actually have to pass. Prefer the project's own script wrapper over a bare tool invocation, so config and transforms are picked up.
 - **Trunk branch and remote** — `git symbolic-ref refs/remotes/origin/HEAD`, `git remote -v`. The remote host tells you the likely tracker and PR tool.
 - **Branch convention** — `git log --format=%D` or recent branch names; infer the ticket-key pattern if there is one.
-- **Existing tracker tooling** — which MCP servers are actually available in this session. **Use the real tool prefix you can see** (e.g. `mcp__atlassian__*`), never a guessed one; a wrong prefix is the single most common cause of an agent silently lacking a tool.
+- **Existing tracker tooling** — which MCP servers are actually available in this session (`opencode mcp list` shows the configured ones). **Use the real tool names you can see**, prefix and all, never a guessed one; a wrong prefix is the single most common cause of an agent silently lacking a tool.
 - **Automated PR reviewers** — the highest-value detection here, because the team currently has no way to know about them. Check both:
   - *Config in the repo:* `.coderabbit.yaml`, a Greptile config, `.github/copilot-instructions.md`, and any workflow under `.github/workflows/` or `azure-pipelines.yml` that invokes a review action (CodeRabbit, Greptile, Codex, `claude-code-action`, Copilot review).
   - *Recent PRs, which is the stronger signal* — a bot installed as a GitHub App leaves no trace in the repo. List a few recently merged PRs and look at who reviewed or commented; authors whose login ends in `[bot]` or which are marked as apps are your answer. Note roughly how long after PR open each one posted, and whether its approval appears as a required check.
-- **Existing conventions** — a `CLAUDE.md`, `AGENTS.md`, or `CONTRIBUTING.md` already in the repo. Harvest it rather than re-asking the user; contradicting an existing CLAUDE.md is worse than being silent.
+- **Existing conventions** — an `AGENTS.md`, `CLAUDE.md`, or `CONTRIBUTING.md` already in the repo. Harvest it rather than re-asking the user; contradicting an existing AGENTS.md is worse than being silent.
 - **Prior profile** — if `.claude/team/project.md` already exists, read it and treat this as a refresh: confirm what's still true, update what isn't, and don't discard the prose sections a human has written.
 
 ## 2. Discover tracker fields rather than asking for IDs
@@ -45,7 +45,7 @@ Use `question` for what you couldn't infer, batching related questions. Realisti
 
 This one is never inferred. Ask it every time, including on a refresh, and present it plainly — the user is deciding how much autonomy to hand over:
 
-- **`human-approval`** (recommend this, and it's the default if they don't decide) — the team implements, reviews, validates and prepares the merge, then stops and notifies a human, who merges. A hook enforces it: agents are blocked from completing a merge.
+- **`human-approval`** (recommend this, and it's the default if they don't decide) — the team implements, reviews, validates and prepares the merge, then stops and notifies a human, who merges. The myco plugin enforces it: agents are blocked from completing a merge.
 - **`autonomous`** — the team merges to the trunk itself once both gates are green. Say out loud what this means: a ticket can go from assignment to merged trunk with no human in the loop at any point.
 
 If they choose `human-approval`, you need two more things:
@@ -63,7 +63,7 @@ When the user corrects a detection, take the correction and don't re-litigate it
 
 ### Knowledge sources
 
-Run the `init-knowledge` skill now. It finds every documentation and knowledge source this project can reach — including MCP servers named after the product or an internal system, and connectors that exist but aren't authorized — and every codebase the work builds against or imitates beyond this repository, asks what each is for, and writes the shared `.claude/team/knowledge.md` that every team's agents read. If the file already exists because the other team's setup wrote it, the skill confirms and fills gaps rather than asking again. When it finishes, carry on here.
+Run the `init-knowledge` skill now. It finds every documentation and knowledge source this project can reach — including MCP servers named after the product or an internal system, and servers that are configured but not authorized — and every codebase the work builds against or imitates beyond this repository, asks what each is for, and writes the shared `.claude/team/knowledge.md` that every team's agents read. If the file already exists because the other team's setup wrote it, the skill confirms and fills gaps rather than asking again. When it finishes, carry on here.
 
 ## 4. Write the profile
 
@@ -71,7 +71,7 @@ Copy `$MYCO_ROOT/engineering-team/templates/team/project.md` to `.claude/team/pr
 
 - **Every placeholder gets replaced or removed.** A profile shipped with `<command>` still in it is worse than no profile — an agent will read it as literal.
 - **Commands must be the real, runnable ones.** Verify each by running it if it's safe and fast (`lint`, `typecheck`, `--version`); don't run a full suite or anything destructive just to check. Say in your summary which ones you actually verified and which you took on trust.
-- **Keep the frontmatter keys exactly as templated.** Three are read by hooks, not just by agents:
+- **Keep the frontmatter keys exactly as templated.** Four are read by the myco plugin, not just by agents:
   - `stream` — which event stream this project writes to. Missing or renamed, telemetry silently goes to a directory named after the working directory.
   - `max_parallel_agents` — read by the tech lead as a hard cap on concurrently running agents. Missing means 3.
   - `merge_policy` — **enforced.** Anything other than `autonomous` blocks agents from completing a merge. Missing means gated, which is the safe failure.
@@ -95,27 +95,28 @@ Then make sure the project's `.gitignore` keeps the heavy and machine-local thin
 
 ## 6. Browser automation, only if it applies
 
-If and only if the project has a web surface, add a Playwright MCP server to the project's `.mcp.json` — **merging** into an existing file rather than replacing it:
+If and only if the project has a web surface, add a Playwright MCP server to the `mcp` section of the project's `opencode.json` — **merging** into an existing file rather than replacing it:
 
 ```json
 {
-  "mcpServers": {
+  "mcp": {
     "playwright": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
+      "type": "local",
+      "command": [
+        "npx",
         "@playwright/mcp@latest",
         "--headless",
         "--ignore-https-errors",
         "--viewport-size", "1280x800",
         "--output-dir", ".claude/qa/runs/_artifacts"
-      ]
+      ],
+      "codemode": false
     }
   }
 }
 ```
 
-Headless so long unattended runs don't steal focus; certificate errors ignored so self-signed dev certs don't block a run; output directed into the QA library so captures land where a run report can cite them. Mention that it needs one-time approval on first use, and that `@latest` is worth pinning if reproducible QA results across weeks matter.
+Headless so long unattended runs don't steal focus; certificate errors ignored so self-signed dev certs don't block a run; output directed into the QA library so captures land where a run report can cite them. `codemode: false` makes its tools plain tools the QA agent calls directly. Mention that OpenCode may ask for approval on first use, and that `@latest` is worth pinning if reproducible QA results across weeks matter.
 
 For a project with no web surface, skip this entirely — don't make a SQL or CLI project launch a browser server every session.
 
@@ -139,7 +140,7 @@ Then tell the user, briefly:
 
 1. **What you detected and what you asked** — so they can spot a wrong inference.
 2. **Which commands you verified by running** vs. took on trust.
-3. **What to commit**: `.claude/team/project.md`, `.claude/team/knowledge.md`, the `.claude/qa/` scaffold, and `.mcp.json` if you touched it.
+3. **What to commit**: `.claude/team/project.md`, `.claude/team/knowledge.md`, the `.claude/qa/` scaffold, and `opencode.json` if you touched it.
 4. **The next step** — one concrete action, not a menu (see below). Mention that `agent-coach` is for later: after a week or a batch of tickets, since it needs traffic before its three-occurrence threshold means anything.
 5. **The merge policy in plain words** — "agents will/won't merge without you, and here's how you'll be told" — plus the verified gate result.
 6. **Anything you deliberately left blank** and what would fill it in.

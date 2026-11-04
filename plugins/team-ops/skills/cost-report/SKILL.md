@@ -16,7 +16,7 @@ node "$MYCO_ROOT/team-ops/scripts/cost.mjs" [--work <tag or prefix>] [--by work|
 - `--json` for figures another agent will process (agent-coach uses it).
 - `--export` sends every recorded session to the team's OTel backend, once, after the export is first configured (`TEAM_OPS_OTLP_ENDPOINT`). Only when asked.
 
-Invoked with a bare tag or slug (`/cost-report order-exceptions`), treat it as `--work`.
+Invoked with a bare tag or slug ("cost-report order-exceptions"), treat it as `--work`.
 
 Run it from inside the project, so it finds the right stream. Show the human the table it prints, then answer their question from it in a sentence or two — what dominated, and anything surprising (one agent far above the rest, a round that cost more than the build).
 
