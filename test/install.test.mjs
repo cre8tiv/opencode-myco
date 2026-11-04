@@ -181,6 +181,24 @@ describe('install', () => {
     assert.match(frontmatterOf(read(join(target, 'agents', 'engineering-team', 'ic-generalist.md'))), /gh pr merge/);
   });
 
+  test('records what it installed, for the doctor', (t) => {
+    const sb = sandbox(t);
+    const target = join(sb.root, 'out');
+    install({ target });
+    const record = JSON.parse(read(join(target, 'myco', 'install.json')));
+    assert.match(record.installedAt, /^\d{4}-\d\d-\d\dT/);
+    assert.equal(record.agents.length, 11);
+    assert.equal(record.skills.length, 8);
+    assert.equal(record.mergeBackstop, true);
+    for (const team of ['design-team', 'engineering-team', 'team-ops']) {
+      assert.equal(record.teams[team], JSON.parse(read(join(ROOT, 'plugins', team, 'meta.json'))).version, team);
+    }
+    assert.ok(record.source === null || /^[0-9a-f]{40}$/.test(record.source));
+    // Rewritten on each install, so it follows the option.
+    install({ target, mergeBackstop: false });
+    assert.equal(JSON.parse(read(join(target, 'myco', 'install.json'))).mergeBackstop, false);
+  });
+
   test('a reinstall replaces what it owns and leaves everything else alone', (t) => {
     const sb = sandbox(t);
     const target = join(sb.root, 'out');
