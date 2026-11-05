@@ -154,14 +154,14 @@ else { console.error('stand-in: no route ' + path); process.exit(1); }
 
   test('agents the run dispatched are read and deleted too, by the id its tool call names', async (t) => {
     const sb = sandbox(t);
-    const dispatch = { type: 'tool', name: 'subagent', state: { input: { agent: 'engineering-team/code-reviewer' }, metadata: { sessionID: 'ses_child' } } };
+    const dispatch = { type: 'tool', name: 'subagent', state: { input: { agent: 'design-team/security-reviewer' }, metadata: { sessionID: 'ses_child' } } };
     const { script, calls } = standIn(sb, {
       sessions: [{ id: 'ses_a' }],
-      contexts: { ses_a: [assistant([dispatch, text('done')])], ses_child: [assistant([tool('write', { path: 'docs/x.md' })])] },
+      contexts: { ses_a: [assistant([dispatch, text('done')])], ses_child: [assistant([tool('write', { path: 'docs/design/order-export/security-review.md' })])] },
     });
     const r = await evalRun(sb, script, ['--case', 'security-reviewer-finds-seeded-gaps']);
     assert.deepEqual(calls().filter((c) => c.deleted && c.deleted !== 'ses_judge').map((c) => c.deleted).sort(), ['ses_a', 'ses_child']);
-    assert.doesNotMatch(r.stdout, /wrote-review\.md failed/, 'the dispatched agent\'s write counts');
+    assert.doesNotMatch(r.stdout, /(wrote-review|dispatched)\.md failed/, 'the dispatch, and the dispatched agent\'s write, count');
   });
 
   test('a run that leaves no session is a zero with the reason, and --fail-under makes it a failing exit', async (t) => {
