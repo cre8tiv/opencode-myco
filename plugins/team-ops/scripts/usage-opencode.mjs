@@ -2,15 +2,15 @@
 //
 // OpenCode keeps every session, and each model response in it carries the agent, the model and the
 // tokens it used. Any program can ask for them, so usage is pulled from OpenCode when a report
-// asks, not pushed by hooks the way Claude Code needed. The same records come out, so cost.mjs and
-// the OTel export (otlp.mjs) work on them unchanged.
+// asks, not pushed as it happens. The records are the ones cost.mjs and the OTel export (otlp.mjs)
+// read.
 //
 // Attribution is usage-lib's: a lead names the work it is on with the start_work tool, that call
 // sits in its session with a time, and the lead's own usage after it belongs to that work. A
 // dispatched agent belongs to the "[TAG]" its task begins with, else to the lead's work when it
 // was dispatched. A dispatched agent's session is found from the lead's subagent call.
 //
-// Two things differ from Claude Code's transcripts:
+// Two things to know about the numbers:
 //
 // - A session's own token total is larger than the sum of its responses. The difference is in no
 //   message: it is OpenCode's hidden internal agents (the one that titles a session, for one). It

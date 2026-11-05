@@ -16,13 +16,13 @@ export const cap = (v, n) => (typeof v === 'string' && v.length > n ? v.slice(0,
 
 /**
  * The one argument that says what a tool call was about, so a finding is traceable to a
- * command. Both hosts' field names are understood: Claude Code's file_path and OpenCode's path.
+ * command.
  * @param {any} input a tool's input @returns {any}
  */
 export const targetOf = (input) => {
   const i = input || {};
   // pattern before path: a grep or glob names both, and what it searched for is the telling one.
-  return cap(i.command || i.file_path || i.pattern || i.path || i.url || i.subagent_type || i.agent, 300);
+  return cap(i.command || i.pattern || i.path || i.url || i.agent, 300);
 };
 
 /**

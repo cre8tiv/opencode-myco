@@ -15,9 +15,9 @@
 import { execFileSync } from 'node:child_process';
 import { profileKey } from './profile.mjs';
 
-// Shell tools whose commands are inspected, under Claude Code's names and OpenCode's.
-// PowerShell is how agents run commands on Windows, so it gets the same scrutiny as Bash.
-const SHELL_TOOLS = new Set(['Bash', 'PowerShell', 'shell', 'bash']);
+// The tool whose commands are inspected. On Windows it runs PowerShell, so the parsing below handles both
+// shells' syntax.
+const SHELL_TOOLS = new Set(['shell']);
 
 // Splits a command line into commands at the separators Bash and PowerShell share
 // (; && || | and newlines), honoring quotes and skipping heredoc bodies. Each command
