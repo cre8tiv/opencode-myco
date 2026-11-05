@@ -123,7 +123,8 @@ function runCase(c, o) {
     git(dir, 'add', '-A');
     git(dir, 'commit', '-q', '-m', 'eval scaffold');
 
-    const r = execOpencode(['run', '--standalone', '--auto', '--format', 'json', '--model', o.model, c.prompt], dir, c.timeoutMs);
+    const agent = c.agent ? ['--agent', c.agent] : [];
+    const r = execOpencode(['run', '--standalone', '--auto', '--format', 'json', '--model', o.model, ...agent, c.prompt], dir, c.timeoutMs);
     // The run names its own session in its output; the agents it dispatched are named in its tool calls. (Listing
     // sessions by directory finds none under a symlinked temp path, as macOS has.)
     const { sessionID } = readStream(r.stdout);
@@ -196,6 +197,8 @@ async function main() {
         else notes.push(`run ${i}: ${g.file} failed: ${v.reason}`);
       }
       scores.push(c.graders.length ? passed / c.graders.length : 0);
+      // What the agent said, when something failed: the reason a grader gives is about the grader, not the run.
+      if (passed < c.graders.length) notes.push(`run ${i}: the agent said: ${(res.obs.final || '(nothing)').replace(/\s+/g, ' ').slice(0, 400)}`);
       if (res.dir) notes.push(`run ${i}: kept ${res.dir}`);
     }
     const mean = scores.reduce((a, b) => a + b, 0) / scores.length;

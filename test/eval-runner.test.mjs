@@ -101,7 +101,7 @@ const note = (o) => appendFileSync(${JSON.stringify(log)}, JSON.stringify(o) + '
 if (args[0] === 'run') {
   const prompt = args.at(-1);
   const judging = prompt.includes('RUBRIC');
-  note({ run: true, judging, pwd: process.env.PWD, model: args[args.indexOf('--model') + 1], cwd: process.cwd(), agents: existsSync('.opencode/agents') ? readdirSync('.opencode/agents').sort() : [], config: existsSync('opencode.json') ? readFileSync('opencode.json', 'utf8') : null, prompt: judging ? '(judge)' : prompt });
+  note({ run: true, judging, pwd: process.env.PWD, agent: args.includes('--agent') ? args[args.indexOf('--agent') + 1] : undefined, model: args[args.indexOf('--model') + 1], cwd: process.cwd(), agents: existsSync('.opencode/agents') ? readdirSync('.opencode/agents').sort() : [], config: existsSync('opencode.json') ? readFileSync('opencode.json', 'utf8') : null, prompt: judging ? '(judge)' : prompt });
   if (judging) console.log(JSON.stringify({ type: 'text', sessionID: 'ses_judge', part: { text: ${JSON.stringify(judge)} } }));
   else if (db.sessions.length) console.log(JSON.stringify({ type: 'step_start', sessionID: db.sessions[0].id }));
   process.exit(0);
@@ -126,6 +126,7 @@ else { console.error('stand-in: no route ' + path); process.exit(1); }
     assert.match(r.stdout, /^1\.00 {2}team-ops\/cost-report-fires/m);
     const run = calls().find((c) => c.run);
     assert.equal(run.model, 'p/m');
+    assert.equal(run.agent, undefined, 'a case without an agent runs as the default one');
     assert.equal(run.pwd, run.cwd, '$PWD names the repository, or OpenCode would work in the directory the runner was started from');
     assert.match(run.prompt, /order-exceptions design package/);
     assert.ok(run.agents.includes('engineering-team') && run.agents.includes('team-ops'), 'the teams were installed into the repository');
@@ -140,6 +141,7 @@ else { console.error('stand-in: no route ' + path); process.exit(1); }
     const r = await evalRun(sb, script, ['--case', 'cost-report-fires']);
     assert.match(r.stdout, /^0\.00 {2}team-ops\/cost-report-fires/m);
     assert.match(r.stdout, /skill-fired\.md failed: skill \/.*cost-report.*\/ used 0 time\(s\)/);
+    assert.match(r.stdout, /the agent said: no skill used/, 'a failure shows what the agent said');
   });
 
   test('an llm grader goes to the judge, which gets its own model and leaves no session behind', async (t) => {
@@ -191,6 +193,13 @@ else { console.error('stand-in: no route ' + path); process.exit(1); }
     assert.match(r.stdout, /cost-report-fires/);
     assert.match(r.stdout, /log-friction-fires/);
     assert.doesNotMatch(r.stdout, /start-work-fires/);
+  });
+
+  test('a case with an agent runs as that agent, which is how a lead is exercised', async (t) => {
+    const sb = sandbox(t);
+    const { script, calls } = standIn(sb, { sessions: [{ id: 'ses_a' }], contexts: { ses_a: [assistant([text('Not merged: the policy is human-approval; priya-raman merges.')])] } });
+    await evalRun(sb, script, ['--case', 'human-approval-handoff']);
+    assert.equal(calls().find((c) => c.run && !c.judging).agent, 'engineering-team/tech-lead');
   });
 
   test('--list shows the cases without running anything', async (t) => {

@@ -1,7 +1,8 @@
 // What the eval runner (eval.mjs) decides without a model: reading a case, reading what a run did out of
 // OpenCode's session records, and grading it. A case is a directory:
 //
-//   prompt.md        the prompt, with frontmatter: description, tags, tools (what the run may use), timeout_seconds
+//   prompt.md        the prompt, with frontmatter: description, tags, tools (what the run may use), agent (run as this
+//                    agent instead of the default one; needed for a lead, which can only be a session's agent), timeout_seconds
 //   case.yaml        only when a case needs a scaffold script
 //   scaffold.sh      builds the repository the case runs in
 //   graders/*.md     one pass/fail check each: tool_used, regex or llm
@@ -39,7 +40,7 @@ export function caseDirs(dir) {
 
 /**
  * @typedef {{file: string, type: string, text: string, [k: string]: string}} Grader
- * @typedef {{name: string, dir: string, prompt: string, description: string, tags: string[], tools: string[], timeoutMs: number, scaffold: string | null, graders: Grader[]}} Case
+ * @typedef {{name: string, dir: string, prompt: string, description: string, tags: string[], tools: string[], agent: string | null, timeoutMs: number, scaffold: string | null, graders: Grader[]}} Case
  */
 
 /** @param {string} dir @param {string} root the evals directory, for the case's name @returns {Case} */
@@ -62,6 +63,7 @@ export function loadCase(dir, root) {
     description: fm.description || '',
     tags: list(fm.tags),
     tools: list(fm.tools),
+    agent: fm.agent || null,
     timeoutMs: (Number(fm.timeout_seconds) || 600) * 1000,
     scaffold: script ? join(dir, script) : null,
     graders,

@@ -24,7 +24,7 @@ Needs `opencode` on your `PATH`, git, and `bash` for scaffold scripts (macOS or 
 ```
 evals/
   <plugin>/<case>/
-    prompt.md          the prompt, and frontmatter: description, tags, tools, timeout_seconds
+    prompt.md          the prompt, and frontmatter: description, tags, tools, agent (optional), timeout_seconds
     graders/*.md       one pass/fail check each: tool_used, regex or llm
     case.yaml          only when a case needs a scaffold script
     scaffold.sh        builds the repository the case runs in
@@ -48,7 +48,7 @@ A skill is a `skill` call with `"id": "<name>"`. The two tools that have a skill
 
 **Pair a result with a process check.** `review-catches-sql-injection` checks that the reviewer was dispatched, that the verdict is Request changes, and, with a model judge, that the finding names the injection in the right place. Prefer deterministic graders (`tool_used`, `regex`); keep `llm` graders for short answers with a concrete PASS/FAIL rubric.
 
-**Agents are dispatched by name, not run as the session agent.** A case asks for one ("Use the engineering-team/code-reviewer agent to…"), which exercises the agent's own instructions, including its tools. It does not exercise a lead dispatching others.
+**Agents are dispatched by name, or run as the session agent.** A case can ask the default agent to dispatch one ("Use the engineering-team/code-reviewer agent to…"), which exercises that agent's own instructions, including its tools. The leads (`tech-lead`, `product-lead`) and `agent-coach` are primary agents: OpenCode won't dispatch them, so a case sets `agent: engineering-team/tech-lead` in its frontmatter and the prompt speaks to it directly. Give such a case the tools its behavior needs (a lead that is refused `shell` declines for the wrong reason).
 
 ## What the cases can and can't tell you
 
