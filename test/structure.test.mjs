@@ -80,36 +80,17 @@ describe('no Claude Code hooks', () => {
 });
 
 describe('agents', () => {
-  const prices = readJson(join(PLUGINS_DIR, 'team-ops', 'scripts', 'prices.json')).models;
-
+  // The frontmatter itself (only OpenCode's keys and tier, a valid mode and tier, the read-only roles' rules) is
+  // checked in install.test.mjs; here, that each agent says what it is for.
   for (const name of plugins) {
     for (const file of agentsOf(name)) {
       const base = relative(PLUGINS_DIR, file).split('\\').join('/');
-      test(`${base}: named after its file, described, and on a model that has a price`, () => {
+      test(`${base}: described well enough to be chosen`, () => {
         const fm = frontmatter(read(file));
-        assert.equal(fm.name, file.split(/[\\/]/).pop().replace(/\.md$/, ''), 'name must match the file name');
         assert.ok(fm.description && fm.description.length > 30, 'description is how the agent gets chosen');
-        if (fm.model) {
-          // An agent on an unpriced model would show up in cost reports as "unpriced".
-          assert.ok(Object.keys(prices).some((k) => fm.model.startsWith(k)), `model ${fm.model} has no entry in prices.json`);
-        }
       });
     }
   }
-
-  test('the agents that write code run in a worktree; the ones that only read do not need to', () => {
-    const iso = (p) => frontmatter(read(join(PLUGINS_DIR, p))).isolation;
-    assert.equal(iso('engineering-team/agents/ic-generalist.md'), 'worktree');
-    assert.equal(iso('engineering-team/agents/ic-specialist-backend.md'), 'worktree');
-    assert.equal(iso('engineering-team/agents/qa-specialist.md'), 'worktree');
-  });
-
-  test('read-only roles cannot edit', () => {
-    for (const p of ['engineering-team/agents/code-reviewer.md', 'team-ops/agents/agent-coach.md']) {
-      assert.match(frontmatter(read(join(PLUGINS_DIR, p))).disallowedTools, /Edit/, p);
-    }
-    assert.match(frontmatter(read(join(PLUGINS_DIR, 'engineering-team/agents/code-reviewer.md'))).disallowedTools, /Write/);
-  });
 });
 
 describe('skills', () => {

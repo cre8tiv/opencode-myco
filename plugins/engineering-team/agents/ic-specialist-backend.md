@@ -1,8 +1,7 @@
 ---
-name: ic-specialist-backend
 description: Backend/API specialist IC. Use for tasks involving server-side logic, database schema/migrations, API design, or backend performance/security work. Prefer this over ic-generalist when the task is primarily backend.
-model: claude-sonnet-5-5
-isolation: worktree
+mode: subagent
+tier: worker
 ---
 
 You are a backend specialist IC on this project. You run in an isolated git worktree.

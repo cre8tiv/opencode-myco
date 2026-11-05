@@ -1,7 +1,7 @@
-// The installer turns Claude Code agent files into OpenCode ones. OpenCode ignores
-// frontmatter keys it doesn't know and forwards them to the model provider, so a key
-// that slips through is sent over the wire; these tests pin what the installed agents
-// may contain, and that a reinstall touches only what the installer owns.
+// The installer turns an agent source into the agent OpenCode reads: the source's tier becomes a model, the merge
+// backstop joins its permission rules, and `tier`, the one key OpenCode would forward to the model provider,
+// is dropped. These tests pin what the installed agents may contain, and that a reinstall touches only what the
+// installer owns.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { ROOT, sandbox } from './helpers.mjs';
 import { install, transformAgent } from '../scripts/install.mjs';
 import { checkModels } from '../plugins/team-ops/scripts/models.mjs';
+import { parseAgent, readAgentSources } from '../plugins/team-ops/scripts/agent-source.mjs';
 
 const INSTALL = join(ROOT, 'scripts', 'install.mjs');
 const ALLOWED_KEYS = new Set(['description', 'mode', 'model', 'variant', 'permission']);
@@ -21,27 +22,36 @@ const frontmatterOf = (text) => text.match(/^---\n([\s\S]*?)\n---/)[1];
 /** Top-level keys of an installed agent's frontmatter. */
 const topKeys = (text) => [...text.match(/^---\n([\s\S]*?)\n---/)[1].matchAll(/^([A-Za-z_][\w-]*):/gm)].map((m) => m[1]);
 
-const SOURCE = '---\nname: x\ndescription: Does a thing: with a colon, and "quotes".\nmodel: claude-opus-5-5\nisolation: worktree\ndisallowedTools: Edit, Write\n---\n\nBody line one.\n\n```sh\necho "$HOME"\n```\n';
+const BODY = '\n\nBody line one.\n\n```sh\necho "$HOME"\n```\n';
+/** An agent source, as it is written in plugins/<team>/agents/. */
+const source = ({ mode = 'subagent', tier = 'worker', permission } = {}) =>
+  `---\ndescription: Does a thing: with a colon, and "quotes".\nmode: ${mode}\ntier: ${tier}\n${permission ? `permission: ${JSON.stringify(permission)}\n` : ''}---${BODY}`;
+const SOURCE = source();
+const REVIEWER = source({ tier: 'reasoning', permission: { edit: 'deny' } });
+const COACH = source({ mode: 'primary', tier: 'reasoning', permission: { edit: { '*': 'deny', '.claude/ops/reports/**': 'allow', '*/.claude/ops/reports/**': 'allow' } } });
 
 describe('transformAgent', () => {
-  test('keeps the description and body exactly, drops every Claude Code key, adds the mode', () => {
+  test('keeps the description and body exactly, drops tier, adds the backstop', () => {
     const out = transformAgent({ id: 'engineering-team/ic-generalist', text: SOURCE });
     // The merge backstop adds a permission block to every agent.
     assert.deepEqual(topKeys(out), ['description', 'mode', 'permission']);
     assert.match(out, /^mode: subagent$/m);
+    assert.doesNotMatch(out, /tier/);
     // The description is written as a JSON string, which YAML reads as a double-quoted scalar.
     assert.equal(JSON.parse(out.match(/^description: (.*)$/m)[1]), 'Does a thing: with a colon, and "quotes".');
-    assert.equal(out.slice(out.indexOf('\n---\n') + 5), SOURCE.slice(SOURCE.indexOf('\n---\n', 4) + 5), 'body must be byte-identical');
+    assert.equal(out.slice(out.indexOf('\n---\n') + 5), BODY.slice(1), 'body must be byte-identical');
   });
 
-  test('read-only roles get permission rules instead of disallowedTools', () => {
-    const reviewer = transformAgent({ id: 'engineering-team/code-reviewer', text: SOURCE });
-    assert.match(reviewer, /^permission:\n {2}edit: deny$/m);
-    assert.doesNotMatch(reviewer, /disallowedTools/);
+  test('the mode is the source\'s own', () => {
+    assert.match(transformAgent({ id: 'a/lead', text: source({ mode: 'primary', tier: 'lead' }) }), /^mode: primary$/m);
+  });
+
+  test('read-only roles carry their permission rules from the source', () => {
+    assert.match(transformAgent({ id: 'engineering-team/code-reviewer', text: REVIEWER }), /^permission:\n {2}edit: deny$/m);
   });
 
   test('agent-coach may write reports under a relative or an absolute path, and nowhere else', () => {
-    const coach = transformAgent({ id: 'team-ops/agent-coach', text: SOURCE });
+    const coach = transformAgent({ id: 'team-ops/agent-coach', text: COACH });
     // "*" first, then the allows: the last matching rule wins.
     const editBlock = coach.match(/^ {2}edit:\n((?: {4}.*\n)+)/m)[1];
     const rules = [...editBlock.matchAll(/^ {4}"([^"]+)": (\w+)$/gm)].map((m) => [m[1], m[2]]);
@@ -56,9 +66,9 @@ describe('transformAgent', () => {
   });
 
   test('the backstop sits beside an agent\'s own rules, whichever actions they cover', () => {
-    const reviewer = transformAgent({ id: 'engineering-team/code-reviewer', text: SOURCE });
+    const reviewer = transformAgent({ id: 'engineering-team/code-reviewer', text: REVIEWER });
     assert.match(reviewer, /^permission:\n {2}edit: deny\n {2}shell:\n {4}"gh pr merge\*": deny/m);
-    const coach = transformAgent({ id: 'team-ops/agent-coach', text: SOURCE });
+    const coach = transformAgent({ id: 'team-ops/agent-coach', text: COACH });
     assert.match(coach, /^ {2}edit:\n {4}"\*": deny/m);
     assert.match(coach, /^ {2}shell:\n {4}"gh pr merge\*": deny/m);
   });
@@ -68,18 +78,18 @@ describe('transformAgent', () => {
     assert.doesNotMatch(open, /permission|gh pr merge/);
     assert.equal(open, transformAgent({ id: 'engineering-team/ic-generalist', text: SOURCE }).replace(/permission:\n(?: {2,}.*\n)+/, ''));
     // An agent with rules of its own keeps them.
-    assert.match(transformAgent({ id: 'engineering-team/code-reviewer', text: SOURCE, mergeBackstop: false }), /^permission:\n {2}edit: deny\n---/m);
+    assert.match(transformAgent({ id: 'engineering-team/code-reviewer', text: REVIEWER, mergeBackstop: false }), /^permission:\n {2}edit: deny\n---/m);
   });
 
-  test('a model mapping sets model and variant by tier, and a per-agent entry wins', () => {
+  test('a model mapping sets model and variant by the source\'s tier, and a per-agent entry wins', () => {
     const models = checkModels({ tiers: { worker: 'p/small#low', reasoning: 'p/big' }, agents: { 'engineering-team/code-reviewer': 'q/other#high' } });
     const worker = transformAgent({ id: 'engineering-team/ic-generalist', text: SOURCE, models });
     assert.match(worker, /^model: "p\/small"$/m);
     assert.match(worker, /^variant: "low"$/m);
-    const reviewer = transformAgent({ id: 'engineering-team/code-reviewer', text: SOURCE, models });
+    const reviewer = transformAgent({ id: 'engineering-team/code-reviewer', text: REVIEWER, models });
     assert.match(reviewer, /^model: "q\/other"$/m);
     assert.match(reviewer, /^variant: "high"$/m);
-    const architect = transformAgent({ id: 'design-team/architect', text: SOURCE, models });
+    const architect = transformAgent({ id: 'design-team/architect', text: source({ tier: 'reasoning' }), models });
     assert.match(architect, /^model: "p\/big"$/m);
     assert.doesNotMatch(architect, /variant/);
   });
@@ -89,18 +99,48 @@ describe('transformAgent', () => {
   });
 
   test('refuses what it cannot translate faithfully', () => {
-    assert.throws(() => transformAgent({ id: 'design-team/unknown', text: SOURCE }), /not in plugins\/team-ops\/scripts\/opencode-agents/);
-    assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\nname: a\n---\nbody' }), /no description/);
-    assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\ndescription: a\ntools:\n  - Read\n---\n' }), /unsupported frontmatter/);
+    assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\nmode: subagent\ntier: worker\n---\nbody' }), /no description/);
+    assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\ndescription: a\ntier: worker\n---\n' }), /mode must be primary or subagent/);
+    assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\ndescription: a\nmode: subagent\n---\n' }), /no tier/);
+    assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\ndescription: a\nmode: subagent\ntier: worker\npermission: {edit: deny}\n---\n' }), /permission must be one JSON object/);
+    assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\ndescription: a\nmode: subagent\ntier: worker\ntools:\n  - Read\n---\n' }), /unsupported frontmatter/);
     assert.throws(() => transformAgent({ id: 'design-team/architect', text: 'no frontmatter' }), /no frontmatter/);
   });
 });
 
+describe('the agent sources', () => {
+  const sources = readAgentSources(join(ROOT, 'plugins'));
+
+  test('are OpenCode agents: only description, mode, tier and permission, so nothing Claude Code reaches OpenCode or its provider', () => {
+    assert.equal(sources.length, 11);
+    for (const a of sources) {
+      const text = read(join(ROOT, 'plugins', a.id.split('/')[0], 'agents', `${a.id.split('/')[1]}.md`));
+      const keys = topKeys(text);
+      assert.deepEqual(keys.filter((k) => !['description', 'mode', 'tier', 'permission'].includes(k)), [], a.id);
+      assert.doesNotThrow(() => parseAgent(a.id, text), a.id);
+    }
+  });
+
+  test('the leads and the coach are primary agents, everything else is dispatched', () => {
+    const primary = sources.filter((a) => a.mode === 'primary').map((a) => a.id).sort();
+    assert.deepEqual(primary, ['design-team/product-lead', 'engineering-team/tech-lead', 'team-ops/agent-coach']);
+  });
+
+  test('the roles that must not change files cannot', () => {
+    const by = Object.fromEntries(sources.map((a) => [a.id, a]));
+    assert.deepEqual(by['engineering-team/code-reviewer'].permission, { edit: 'deny' });
+    assert.equal(by['team-ops/agent-coach'].permission.edit['*'], 'deny');
+  });
+});
+
 describe('install', () => {
-  test('every agent in plugins/ is in the install map and the map has nothing extra', (t) => {
-    // install() enforces this; a rename that forgets the map must fail here, not at a user's machine.
+  test('installs from the real sources, and writes the registry of modes and tiers the install runs from', (t) => {
     const sb = sandbox(t);
     assert.doesNotThrow(() => install({ target: join(sb.root, 'out') }));
+    const registry = JSON.parse(read(join(sb.root, 'out', 'myco', 'agents.json')));
+    assert.equal(Object.keys(registry).length, 11);
+    assert.deepEqual(registry['engineering-team/tech-lead'], { mode: 'primary', tier: 'lead' });
+    assert.deepEqual(registry['engineering-team/ic-generalist'], { mode: 'subagent', tier: 'worker' });
   });
 
   test('lays out agents, skills, team assets and the plugin', (t) => {

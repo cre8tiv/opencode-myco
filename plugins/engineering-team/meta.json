@@ -1,7 +1,7 @@
 {
   "name": "engineering-team",
   "displayName": "Engineering Team",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "A delivery agent team with two quality gates and a self-improvement loop. Tech lead decomposes and delegates; ICs work in isolated worktrees; code review reads the diff; QA exercises the running build and persists a reusable test library; a process analyst observes the team and proposes changes to its own definitions.",
   "author": {
     "name": "cre8tiv",
