@@ -163,7 +163,7 @@ else { console.error('stand-in: no route ' + path); process.exit(1); }
       contexts: { ses_a: [assistant([dispatch, text('done')])], ses_child: [assistant([tool('write', { path: 'docs/design/order-export/security-review.md' })])] },
     });
     const r = await evalRun(sb, script, ['--case', 'security-reviewer-finds-seeded-gaps']);
-    assert.deepEqual(calls().filter((c) => c.deleted && c.deleted !== 'ses_judge').map((c) => c.deleted).sort(), ['ses_a', 'ses_child']);
+    assert.deepEqual(calls().filter((c) => c.deleted && c.deleted !== 'ses_judge').map((c) => c.deleted), ['ses_child', 'ses_a'], 'the dispatched agent first: deleting its lead would delete it');
     assert.doesNotMatch(r.stdout, /(wrote-review|dispatched)\.md failed/, 'the dispatch, and the dispatched agent\'s write, count');
   });
 

@@ -64,11 +64,15 @@ function readStream(stdout) {
   return { sessionID, text: text.join('\n') };
 }
 
-/** Deletes the sessions of a run; a failure to is reported, not fatal. @param {string[]} ids @param {string} cwd */
+/**
+ * Deletes the sessions of a run, dispatched agents first: deleting a session deletes the ones it dispatched, so
+ * deleting the lead first would leave nothing to delete for them. A failure to delete is reported, not fatal.
+ * @param {string[]} ids the lead's session first @param {string} cwd
+ */
 function deleteSessions(ids, cwd) {
-  for (const id of ids) {
+  for (const id of [...ids].reverse()) {
     const r = execOpencode(['session', 'delete', id], cwd);
-    if (r.status !== 0) console.error(`  could not delete session ${id}: ${(r.stderr || r.stdout).trim().slice(0, 100)}`);
+    if (r.status !== 0 && !/not found/i.test(r.stderr + r.stdout)) console.error(`  could not delete session ${id}: ${(r.stderr || r.stdout).trim().slice(0, 100)}`);
   }
 }
 
