@@ -31,9 +31,11 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     if (!argv[i].startsWith('--')) continue;
     const v = argv[i + 1];
-    if (v === undefined || v.startsWith('--')) o[argv[i].slice(2)] = true;
+    const key = argv[i].slice(2);
+    if (v === undefined || v.startsWith('--')) o[key] = true;
     else {
-      o[argv[i].slice(2)] = v;
+      // --case may be repeated: the values join, as if comma-separated.
+      o[key] = key === 'case' && typeof o[key] === 'string' ? `${o[key]},${v}` : v;
       i++;
     }
   }
@@ -112,10 +114,12 @@ const git = (cwd, ...args) => spawnSync('git', ['-c', 'user.email=eval@example.c
  */
 function runCase(c, o) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'myco-eval-')));
+  // The repository's path when --keep leaves it behind, so a failed run's can be found too.
+  const kept = o.keep ? dir : undefined;
   try {
     if (c.scaffold) {
       const r = spawnSync('bash', [c.scaffold], { cwd: dir, encoding: 'utf8' });
-      if (r.status !== 0) return { obs: observe([]), error: `scaffold failed: ${(r.stderr || r.stdout).trim().slice(0, 200)}` };
+      if (r.status !== 0) return { obs: observe([]), error: `scaffold failed: ${(r.stderr || r.stdout).trim().slice(0, 200)}`, dir: kept };
     }
     if (git(dir, 'rev-parse', '--git-dir').status !== 0) git(dir, 'init', '-q', '-b', 'main');
     install({ target: join(dir, '.opencode'), models: { tiers: { lead: o.model, reasoning: o.model, worker: o.model } } });
@@ -128,7 +132,7 @@ function runCase(c, o) {
     // The run names its own session in its output; the agents it dispatched are named in its tool calls. (Listing
     // sessions by directory finds none under a symlinked temp path, as macOS has.)
     const { sessionID } = readStream(r.stdout);
-    if (!sessionID) return { obs: observe([]), error: `the run left no session${r.status === null ? ' (it timed out)' : ''}: ${(r.stderr || r.stdout).trim().slice(0, 200)}` };
+    if (!sessionID) return { obs: observe([]), error: `the run left no session${r.status === null ? ' (it timed out)' : ''}: ${(r.stderr || r.stdout).trim().slice(0, 200)}`, dir: kept };
     /** @type {{info: any, messages: any[]}[]} */
     const loaded = [];
     const made = [];
@@ -148,11 +152,11 @@ function runCase(c, o) {
       };
       load(sessionID);
     } catch (e) {
-      return { obs: observe([]), error: e instanceof Error ? e.message : String(e) };
+      return { obs: observe([]), error: e instanceof Error ? e.message : String(e), dir: kept };
     } finally {
       deleteSessions(made, dir);
     }
-    return { obs: observe(loaded), dir: o.keep ? dir : undefined };
+    return { obs: observe(loaded), dir: kept };
   } finally {
     if (!o.keep) cleanup(dir);
   }
@@ -188,6 +192,7 @@ async function main() {
       if (res.error) {
         scores.push(0);
         notes.push(`run ${i}: ${res.error}`);
+        if (res.dir) notes.push(`run ${i}: kept ${res.dir}`);
         continue;
       }
       let passed = 0;

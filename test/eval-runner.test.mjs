@@ -2,7 +2,7 @@
 // whole runner against a stand-in `opencode` that answers with canned sessions.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { sandbox, runNode, ROOT } from './helpers.mjs';
 import { frontmatter, list, observe, grade, permissionFor, verdictOf } from '../scripts/eval-lib.mjs';
@@ -192,6 +192,25 @@ else { console.error('stand-in: no route ' + path); process.exit(1); }
     const r = await evalRun(sb, script, ['--case', 'cost-report-fires', '--fail-under', '0.5']);
     assert.equal(r.status, 1);
     assert.match(r.stdout, /the run left no session/);
+  });
+
+  test('--case may be repeated', async (t) => {
+    const sb = sandbox(t);
+    const { script } = standIn(sb, { sessions: [], contexts: {} });
+    const r = await evalRun(sb, script, ['--list', '--case', 'cost-report-fires', '--case', 'log-friction-fires']);
+    assert.match(r.stdout, /cost-report-fires/);
+    assert.match(r.stdout, /log-friction-fires/);
+    assert.doesNotMatch(r.stdout, /start-work-fires/);
+  });
+
+  test('a kept repository is reported for a run that failed, too', async (t) => {
+    const sb = sandbox(t);
+    const { script } = standIn(sb, { sessions: [], contexts: {} });
+    const r = await evalRun(sb, script, ['--case', 'cost-report-fires', '--keep']);
+    const kept = r.stdout.match(/kept (\S+myco-eval-\S+)/)?.[1];
+    assert.ok(kept, r.stdout);
+    assert.equal(existsSync(kept), true, 'the repository is where it says');
+    rmSync(kept, { recursive: true, force: true });
   });
 
   test('--case takes several, comma-separated', async (t) => {
