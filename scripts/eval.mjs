@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { install } from './install.mjs';
-import { execOpencode } from '../plugins/team-ops/scripts/usage-opencode.mjs';
+import { dispatchesOf, execOpencode } from '../plugins/team-ops/scripts/usage-opencode.mjs';
 import { caseDirs, grade, loadCase, observe, permissionFor, verdictOf } from './eval-lib.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -120,14 +120,26 @@ function runCase(c, o) {
     git(dir, 'commit', '-q', '-m', 'eval scaffold');
 
     const r = execOpencode(['run', '--standalone', '--auto', '--format', 'json', '--model', o.model, c.prompt], dir, c.timeoutMs);
-    const sessions = dataOf(api(['GET', `/api/session?directory=${encodeURIComponent(dir)}`], dir));
-    const loaded = sessions.map((s) => ({ info: s, messages: dataOf(api(['GET', `/api/session/${s.id}/context`], dir)) }));
-    // The top-level session first: the one nothing dispatched.
-    loaded.sort((a, b) => Number(!!a.info.parentID || !!a.info.metadata?.mycoParent) - Number(!!b.info.parentID || !!b.info.metadata?.mycoParent));
-    deleteSessions(sessions.map((s) => s.id), dir);
-    const obs = observe(loaded);
-    if (!loaded.length) return { obs, error: `the run left no session${r.status === null ? ' (it timed out)' : ''}: ${(r.stderr || r.stdout).trim().slice(0, 200)}` };
-    return { obs, dir: o.keep ? dir : undefined };
+    // The run names its own session in its output; the agents it dispatched are named in its tool calls. (Listing
+    // sessions by directory finds none under a symlinked temp path, as macOS has.)
+    const { sessionID } = readStream(r.stdout);
+    if (!sessionID) return { obs: observe([]), error: `the run left no session${r.status === null ? ' (it timed out)' : ''}: ${(r.stderr || r.stdout).trim().slice(0, 200)}` };
+    /** @type {{info: any, messages: any[]}[]} */
+    const loaded = [];
+    const made = [];
+    try {
+      /** @param {string} id */
+      const load = (id) => {
+        made.push(id);
+        const messages = dataOf(api(['GET', `/api/session/${id}/context`], dir));
+        loaded.push({ info: {}, messages });
+        for (const d of dispatchesOf(messages)) if (!made.includes(d.sessionID)) load(d.sessionID);
+      };
+      load(sessionID);
+    } finally {
+      deleteSessions(made, dir);
+    }
+    return { obs: observe(loaded), dir: o.keep ? dir : undefined };
   } finally {
     if (!o.keep) cleanup(dir);
   }

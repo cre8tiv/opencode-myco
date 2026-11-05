@@ -103,12 +103,13 @@ if (args[0] === 'run') {
   const judging = prompt.includes('RUBRIC');
   note({ run: true, judging, model: args[args.indexOf('--model') + 1], cwd: process.cwd(), agents: existsSync('.opencode/agents') ? readdirSync('.opencode/agents').sort() : [], config: existsSync('opencode.json') ? readFileSync('opencode.json', 'utf8') : null, prompt: judging ? '(judge)' : prompt });
   if (judging) console.log(JSON.stringify({ type: 'text', sessionID: 'ses_judge', part: { text: ${JSON.stringify(judge)} } }));
+  else if (db.sessions.length) console.log(JSON.stringify({ type: 'step_start', sessionID: db.sessions[0].id }));
   process.exit(0);
 }
 if (args[0] === 'session') { note({ deleted: args[2] }); process.exit(0); }
 const path = args.at(-1);
-if (path.startsWith('/api/session?')) console.log(JSON.stringify({ data: db.sessions }));
-else console.log(JSON.stringify({ data: db.contexts[path.split('/')[3]] || [] }));
+if (path.startsWith('/api/session/') && path.endsWith('/context')) console.log(JSON.stringify({ data: db.contexts[path.split('/')[3]] || [] }));
+else { console.error('stand-in: no route ' + path); process.exit(1); }
 `);
     const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
     return { script, calls };
@@ -149,6 +150,18 @@ else console.log(JSON.stringify({ data: db.contexts[path.split('/')[3]] || [] })
     assert.match(r.stdout, /finding\.md failed: it is only a style note/);
     assert.equal(calls().find((c) => c.judging).model, 'j/m');
     assert.ok(calls().some((c) => c.deleted === 'ses_judge'));
+  });
+
+  test('agents the run dispatched are read and deleted too, by the id its tool call names', async (t) => {
+    const sb = sandbox(t);
+    const dispatch = { type: 'tool', name: 'subagent', state: { input: { agent: 'engineering-team/code-reviewer' }, metadata: { sessionID: 'ses_child' } } };
+    const { script, calls } = standIn(sb, {
+      sessions: [{ id: 'ses_a' }],
+      contexts: { ses_a: [assistant([dispatch, text('done')])], ses_child: [assistant([tool('write', { path: 'docs/x.md' })])] },
+    });
+    const r = await evalRun(sb, script, ['--case', 'security-reviewer-finds-seeded-gaps']);
+    assert.deepEqual(calls().filter((c) => c.deleted && c.deleted !== 'ses_judge').map((c) => c.deleted).sort(), ['ses_a', 'ses_child']);
+    assert.doesNotMatch(r.stdout, /wrote-review\.md failed/, 'the dispatched agent\'s write counts');
   });
 
   test('a run that leaves no session is a zero with the reason, and --fail-under makes it a failing exit', async (t) => {
