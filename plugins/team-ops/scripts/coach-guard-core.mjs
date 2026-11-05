@@ -11,10 +11,8 @@
 // acceptable. This is a guard against accidents, not a sandbox: a script that writes
 // files from inside an interpreter (`node -e`, `python -c`) isn't inspected.
 //
-// The OpenCode plugin calls it from its tool hook. It names tools and fields its own way
-// (shell, edit, path); Claude Code's spellings (Bash, Write, file_path) are still understood, as
-// are namespaced agents ("team-ops/agent-coach", or "team-ops:agent-coach"): the role is matched
-// after the last separator, and a bare name matches too.
+// The OpenCode plugin calls it from its tool hook. Team agents are namespaced ("team-ops/agent-coach"): the
+// role is matched after the last slash, and a bare name matches too.
 import { posix } from 'node:path';
 
 
@@ -23,9 +21,10 @@ const ALLOWED = [/(^|\/)\.claude\/ops\/reports(\/|$)/i, /(^|\/)(tmp|temp)(\/|$)/
 /** Places a redirect may point at without writing a file. */
 const SINKS = new Set(['/dev/null', '$null', 'nul']);
 
-// Claude Code's tool names, then OpenCode's.
-const FILE_TOOLS = ['Write', 'Edit', 'NotebookEdit', 'write', 'edit', 'patch'];
-const SHELL_TOOLS = ['Bash', 'PowerShell', 'shell', 'bash'];
+// OpenCode's tools that change files, and the one that runs commands (PowerShell on Windows, which the
+// parsing below also handles).
+const FILE_TOOLS = ['write', 'edit', 'patch'];
+const SHELL_TOOLS = ['shell'];
 
 /** Commands that modify files, including PowerShell cmdlets and their aliases. */
 const MUTATING = new Set([
@@ -244,7 +243,7 @@ export function disallowedWrite(cmd, depth = 0) {
 
 
 /** @param {string | null | undefined} agent @returns {string} the role: the part of a team agent's name after its team */
-export const roleOf = (agent) => String(agent || '').split(/[:/]/).pop() || '';
+export const roleOf = (agent) => String(agent || '').split('/').pop() || '';
 
 /**
  * @param {{agent?: string | null, tool?: string, input?: any}} call the agent making the call, the tool, its input
@@ -253,8 +252,13 @@ export const roleOf = (agent) => String(agent || '').split(/[:/]/).pop() || '';
 export function coachViolation({ agent, tool, input }) {
   if (roleOf(agent) !== 'agent-coach') return null;
   const ti = input || {};
+  if (tool === 'patch') {
+    // A patch names its files in its text, not in a field: "*** Update File: path", and "*** Move to: path".
+    const paths = [...String(ti.patchText || '').matchAll(/^\*\*\* (?:(?:Add|Update|Delete) File|Move to):\s*(.+?)\s*$/gm)].map((m) => m[1]);
+    return paths.find((p) => !allowed(p)) ?? null;
+  }
   if (FILE_TOOLS.includes(tool)) {
-    const target = ti.file_path || ti.notebook_path || ti.path || ti.filePath;
+    const target = ti.path || ti.filePath;
     return target && !allowed(target) ? target : null;
   }
   if (SHELL_TOOLS.includes(tool)) return disallowedWrite(ti.command || '');

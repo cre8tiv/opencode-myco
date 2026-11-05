@@ -18,7 +18,7 @@ beforeEach(() => ENV_KEYS.forEach((k) => { saved[k] = process.env[k]; delete pro
 afterEach(() => ENV_KEYS.forEach((k) => { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }));
 
 const row = (over = {}) => ({
-  session: 's1', agent_id: 'main', agent: 'design-team:product-lead', work: 'order-exceptions/round-1', parent_work: 'order-exceptions/round-1',
+  session: 's1', agent_id: 'main', agent: 'design-team/product-lead', work: 'order-exceptions/round-1', parent_work: 'order-exceptions/round-1',
   model: 'claude-opus-5-5', speed: 'standard', input: M, output: 100_000, cache_write_5m: 0, cache_write_1h: 0, cache_read: 0, requests: 3,
   first: '2026-10-12T10:00:00.000Z', last: '2026-10-12T10:30:00.000Z', snap: '2026-10-12T11:00:00.000Z', ...over,
 });
@@ -55,7 +55,7 @@ describe('metrics', () => {
     const [cost] = metrics[0].sum.dataPoints;
     assert.equal(cost.asDouble, 6); // 1M in at $4 + 100K out at $20
     assert.deepEqual(attrMap(cost.attributes), {
-      'team_ops.stream': 'alpha', agent: 'design-team:product-lead', work: 'order-exceptions/round-1', parent_work: 'order-exceptions/round-1', model: 'claude-opus-5-5', speed: 'standard',
+      'team_ops.stream': 'alpha', agent: 'design-team/product-lead', work: 'order-exceptions/round-1', parent_work: 'order-exceptions/round-1', model: 'claude-opus-5-5', speed: 'standard',
     });
   });
 
@@ -96,7 +96,7 @@ describe('metrics', () => {
 });
 
 describe('events', () => {
-  const failure = { ts: '2026-10-12T10:00:00.000Z', event: 'PostToolUseFailure', agent: 'engineering-team:ic-generalist', agent_id: 'ic1', session: 's1', work: 'CLOUD-1', tool: 'Bash', mode: 'default', target: 'npm test', error: 'jest: not found with token sk-live-123', report: 'internal notes' };
+  const failure = { ts: '2026-10-12T10:00:00.000Z', event: 'PostToolUseFailure', agent: 'engineering-team/ic-generalist', agent_id: 'ic1', session: 's1', work: 'CLOUD-1', tool: 'shell', mode: 'default', target: 'npm test', error: 'jest: not found with token sk-live-123', report: 'internal notes' };
   const note = { ts: '2026-10-12T10:00:00.000Z', agent: 'architect', session: 's1', work: 'pkg/round-1', kind: 'tooling', note: 'figma connector not authorized' };
   const logRecord = (body) => body.resourceLogs[0].scopeLogs[0].logRecords[0];
 
@@ -112,9 +112,9 @@ describe('events', () => {
     const a = attrMap(rec.attributes);
     assert.equal(a['event.name'], 'team_ops.tool_failure');
     assert.equal(a['team_ops.stream'], 'alpha');
-    assert.equal(a.agent, 'engineering-team:ic-generalist');
+    assert.equal(a.agent, 'engineering-team/ic-generalist');
     assert.equal(a.work, 'CLOUD-1');
-    assert.equal(a['tool.name'], 'Bash');
+    assert.equal(a['tool.name'], 'shell');
     assert.equal(rec.eventName, 'team_ops.tool_failure');
   });
 

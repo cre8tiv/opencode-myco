@@ -9,8 +9,8 @@ import { join } from 'node:path';
 import { sandbox, writeProfile } from './helpers.mjs';
 import { mergeVerdict } from '../plugins/engineering-team/scripts/merge-gate-core.mjs';
 
-const LEAD = 'engineering-team:tech-lead';
-const IC = 'engineering-team:ic-generalist';
+const LEAD = 'engineering-team/tech-lead';
+const IC = 'engineering-team/ic-generalist';
 
 /**
  * Asks the gate, and answers as a host adapter does: 2 and the message to the agent when the call is blocked.
@@ -34,32 +34,32 @@ function verdict(call, env = {}) {
  * @param {ReturnType<typeof sandbox>} sb
  * @param {{tool?: string, command?: string, input?: object, agent?: string | null}} call
  */
-async function gate(sb, { tool = 'Bash', command, input, agent = LEAD }) {
+async function gate(sb, { tool = 'shell', command, input, agent = LEAD }) {
   return verdict({ agent: agent || undefined, tool, input: input ?? { command }, cwd: sb.project });
 }
 
 describe('merge_policy: human-approval', () => {
   const BLOCKED = [
-    ['Bash', 'gh pr merge 42'],
-    ['Bash', 'gh pr merge 42 --squash --delete-branch'],
-    ['PowerShell', 'gh pr merge 42 --squash'],
-    ['PowerShell', 'gh.exe pr merge 42'],
-    ['Bash', 'gh api -X PUT repos/acme/app/pulls/42/merge -f merge_method=squash'],
-    ['Bash', 'gh api graphql -f query=\'mutation { mergePullRequest(input: {pullRequestId: "X"}) { clientMutationId } }\''],
-    ['Bash', 'az repos pr update --id 42 --status completed'],
-    ['Bash', 'git push origin main'],
-    ['Bash', 'git push origin HEAD:main'],
-    ['Bash', 'git push origin HEAD:refs/heads/main'],
-    ['Bash', 'git push origin +main'],
-    ['Bash', 'git push --force-with-lease origin HEAD:main'],
-    ['Bash', 'git push origin :main'],
-    ['Bash', 'git add -A && git commit -m wip && git push origin main'],
-    ['PowerShell', 'git add .; git commit -m wip; git push origin main'],
-    ['Bash', 'cd app && git push origin main'],
-    ['Bash', 'git -C ../app push origin main'],
-    ['Bash', 'GH_TOKEN=abc gh pr merge 42'],
-    ['Bash', 'bash -c "gh pr merge 42"'],
-    ['PowerShell', 'pwsh -NoProfile -Command "gh pr merge 42 --squash"'],
+    ['shell', 'gh pr merge 42'],
+    ['shell', 'gh pr merge 42 --squash --delete-branch'],
+    ['shell', 'gh pr merge 42 --squash'],
+    ['shell', 'gh.exe pr merge 42'],
+    ['shell', 'gh api -X PUT repos/acme/app/pulls/42/merge -f merge_method=squash'],
+    ['shell', 'gh api graphql -f query=\'mutation { mergePullRequest(input: {pullRequestId: "X"}) { clientMutationId } }\''],
+    ['shell', 'az repos pr update --id 42 --status completed'],
+    ['shell', 'git push origin main'],
+    ['shell', 'git push origin HEAD:main'],
+    ['shell', 'git push origin HEAD:refs/heads/main'],
+    ['shell', 'git push origin +main'],
+    ['shell', 'git push --force-with-lease origin HEAD:main'],
+    ['shell', 'git push origin :main'],
+    ['shell', 'git add -A && git commit -m wip && git push origin main'],
+    ['shell', 'git add .; git commit -m wip; git push origin main'],
+    ['shell', 'cd app && git push origin main'],
+    ['shell', 'git -C ../app push origin main'],
+    ['shell', 'GH_TOKEN=abc gh pr merge 42'],
+    ['shell', 'bash -c "gh pr merge 42"'],
+    ['shell', 'pwsh -NoProfile -Command "gh pr merge 42 --squash"'],
   ];
   for (const [tool, command] of BLOCKED) {
     test(`blocks ${tool}: ${command}`, async (t) => {
@@ -121,7 +121,7 @@ describe('merge_policy: human-approval', () => {
     const sb = sandbox(t);
     writeProfile(sb.project, { merge_policy: 'human-approval' });
     assert.equal((await gate(sb, { tool: 'mcp__github__get_pull_request', input: { pullNumber: 42 } })).status, 0);
-    assert.equal((await gate(sb, { tool: 'Read', input: { file_path: 'merge-notes.md' } })).status, 0);
+    assert.equal((await gate(sb, { tool: 'Read', input: { path: 'merge-notes.md' } })).status, 0);
   });
 
   test('the block tells the agent what to do instead', async (t) => {
@@ -209,7 +209,7 @@ describe('policy resolution', () => {
     writeProfile(sb.project, { merge_policy: 'autonomous' });
     const worktree = join(sb.project, '.claude', 'worktrees', 'agent-1', 'src');
     mkdirSync(worktree, { recursive: true });
-    const r = verdict({ agent: IC, cwd: worktree, tool: 'Bash', input: { command: 'gh pr merge 1' } });
+    const r = verdict({ agent: IC, cwd: worktree, tool: 'shell', input: { command: 'gh pr merge 1' } });
     assert.equal(r.status, 0);
   });
 });
@@ -254,7 +254,7 @@ describe('who is gated', () => {
   test('every team agent is gated, not just the lead', async (t) => {
     const sb = sandbox(t);
     writeProfile(sb.project, { merge_policy: 'human-approval' });
-    for (const agent of [LEAD, IC, 'engineering-team:qa-specialist', 'engineering-team:code-reviewer']) {
+    for (const agent of [LEAD, IC, 'engineering-team/qa-specialist', 'engineering-team/code-reviewer']) {
       assert.equal((await gate(sb, { command: 'gh pr merge 42', agent })).status, 2, agent);
     }
   });
@@ -264,16 +264,16 @@ describe('failing safe', () => {
   test('a malformed call never blocks work', async (t) => {
     const sb = sandbox(t);
     for (const input of [null, undefined, 'gh pr merge 1', [], 42, { command: 42 }, { command: null }]) {
-      assert.equal(verdict({ agent: LEAD, tool: 'Bash', input, cwd: sb.project }).status, 0, JSON.stringify(input));
+      assert.equal(verdict({ agent: LEAD, tool: 'shell', input, cwd: sb.project }).status, 0, JSON.stringify(input));
     }
-    for (const call of [{}, { agent: LEAD }, { tool: 'Bash' }]) {
+    for (const call of [{}, { agent: LEAD }, { tool: 'shell' }]) {
       assert.equal(verdict(call).status, 0, JSON.stringify(call));
     }
   });
 
   test('a call with no tool input is allowed', async (t) => {
     const sb = sandbox(t);
-    const r = verdict({ agent: LEAD, cwd: sb.project, tool: 'Bash' });
+    const r = verdict({ agent: LEAD, cwd: sb.project, tool: 'shell' });
     assert.equal(r.status, 0);
   });
 });
@@ -317,7 +317,7 @@ describe('merge_policy: autonomous requires a passing QA run', () => {
     push();
     return { qaReport, push, env: { ...sb.env, MERGE_GATE_GH: ghStub } };
   }
-  const run = (sb, r, command) => verdict({ agent: LEAD, cwd: sb.project, tool: 'Bash', input: { command } }, r.env);
+  const run = (sb, r, command) => verdict({ agent: LEAD, cwd: sb.project, tool: 'shell', input: { command } }, r.env);
   const PASS = ['# QA run', 'Verdict: Pass', 'Tested SHA: <sha>'];
 
   test('a Pass for the code being merged lets the merge through', async (t) => {
@@ -431,7 +431,7 @@ describe('merge_policy: autonomous requires a passing QA run', () => {
     const plain = join(sb.root, 'plain');
     mkdirSync(plain);
     writeProfile(plain, { merge_policy: 'autonomous' });
-    assert.equal(verdict({ agent: LEAD, cwd: plain, tool: 'Bash', input: { command: 'gh pr merge 42' } }, r.env).status, 0);
+    assert.equal(verdict({ agent: LEAD, cwd: plain, tool: 'shell', input: { command: 'gh pr merge 42' } }, r.env).status, 0);
   });
 
   test('a push to the trunk and non-merge commands are not subject to the QA check', async (t) => {

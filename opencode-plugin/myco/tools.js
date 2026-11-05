@@ -1,8 +1,6 @@
-// The tools the teams call, as OpenCode tools. In Claude Code these were a skill whose
-// call was itself the record (start-work) and a script the agent ran (friction). An
-// OpenCode tool is handed the real session and agent by the host, which a shell command
-// is not, so both are tools: nothing is inferred from transcripts or smuggled through the
-// environment.
+// The tools the teams call. An OpenCode tool is handed the real session and agent by the host,
+// which a shell command is not, so naming work and reporting friction are tools: nothing is
+// inferred from transcripts or smuggled through the environment.
 //
 // Telemetry never blocks delivery: a tool that cannot do its job says so in its result and
 // does not throw.
