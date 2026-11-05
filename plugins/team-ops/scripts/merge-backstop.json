@@ -1,0 +1,7 @@
+{
+  "_comment": "Written into every agent's permission rules unless the install allows autonomous merging. A static deny: it holds even if the plugin fails to load, but cannot read a project's merge_policy, and only matches the command text, so the plugin's merge gate stays the real check.",
+  "shell": {
+    "gh pr merge*": "deny",
+    "gh * pr merge*": "deny"
+  }
+}

@@ -81,7 +81,7 @@ What it puts where:
 
 | Path (under the target) | What |
 | ----------------------- | ---- |
-| `agents/<team>/<role>.md` | The eleven agents, with their frontmatter rewritten for OpenCode |
+| `agents/<team>/<role>.md` | The eleven agents: the source's description, mode and permission rules, with the model your mapping gives its tier and the merge backstop added |
 | `skills/<name>/` | The eight skills |
 | `plugins/myco/` | The plugin: guards, event capture, `start_work`, `log_friction`, `delegate` |
 | `myco/<team>/` | Each team's scripts and templates |
@@ -375,7 +375,7 @@ node scripts/drift.mjs release <path> --reason "…"  # a shared file now differ
 
 This fork no longer runs under Claude Code: the hook scripts and `hooks.json`, and the code that read Claude's transcripts, are gone (use upstream myco there). Upstream changes to those files will show as a delete/modify conflict to resolve by keeping them deleted; the decision code they called (`*-core.mjs`) is kept and shared by the OpenCode plugin.
 
-The agent sources keep their Claude Code frontmatter, so they stay mergeable too; the installer rewrites it into OpenCode's (`mode`, `permission`, `model`) and drops every Claude-only key, because OpenCode forwards unknown keys to the model provider.
+The agent sources are OpenCode agents, not upstream's: their frontmatter is `description`, `mode`, `permission` (one JSON object on one line) and `tier`, and nothing from Claude Code. `tier` (`lead`, `reasoning` or `worker`) is the one key OpenCode doesn't know; the installer replaces it with the model your mapping gives that tier, because OpenCode forwards unknown keys to the model provider. The agent files will therefore conflict with upstream's on their first lines, and the prompts below them are the part that still merges.
 
 ## Contributing
 
