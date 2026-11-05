@@ -8,7 +8,7 @@ import { join, relative } from 'node:path';
 import { ROOT } from './helpers.mjs';
 
 const SHARED = new Set(['otlp.mjs', 'profile.mjs', 'check-package.mjs', 'render-review.mjs']);
-const IDENTIFIERS = /\b(NotebookEdit|file_path|notebook_path|subagent_type|agent_type|CLAUDE_PLUGIN_ROOT|CLAUDE_CODE_[A-Z_]+)\b|['"](Bash|PowerShell)['"]|\b(?:design|engineering)-team:[a-z]|\bteam-ops:[a-z]/;
+const IDENTIFIERS = /\b(NotebookEdit|file_path|notebook_path|subagent_type|agent_type|CLAUDE_PLUGIN_ROOT|CLAUDE_CODE_[A-Z_]+)\b|['"](Bash|PowerShell|Write|Edit|MultiEdit|NotebookRead|Read|Glob|Grep|WebFetch|WebSearch|Skill|Agent|Task|TodoWrite)['"]|\b(?:design|engineering)-team:[a-z]|\bteam-ops:[a-z]/;
 
 /** @param {string} dir @returns {string[]} the code files below dir, leaving out dependencies and shared files */
 function codeFiles(dir) {
