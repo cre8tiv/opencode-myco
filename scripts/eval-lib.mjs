@@ -89,9 +89,10 @@ export function permissionFor(allowed) {
 }
 
 /**
- * @typedef {{tools: {name: string, input: string}[], text: string, final: string}} Observed
+ * @typedef {{tools: {name: string, input: string}[], text: string, final: string, all: string}} Observed
  *   tools: every tool call in the run, by every agent in it (a dispatched agent's too), with its input as JSON;
- *   text: everything the top-level agent said; final: its last message.
+ *   text: everything the top-level agent said; final: its last message; all: everything every agent said, so a
+ *   check on a dispatched agent's own wording does not depend on the top-level agent repeating it.
  */
 
 /**
@@ -104,6 +105,8 @@ export function observe(sessions) {
   const tools = [];
   /** @type {string[]} */
   const said = [];
+  /** @type {string[]} */
+  const everyone = [];
   sessions.forEach((s, i) => {
     for (const m of s.messages || []) {
       if (m?.type !== 'assistant') continue;
@@ -112,10 +115,11 @@ export function observe(sessions) {
         if (c?.type === 'tool') tools.push({ name: String(c.name), input: JSON.stringify(c.state?.input ?? {}) });
         else if (c?.type === 'text' && c.text) texts.push(c.text);
       }
+      if (texts.length) everyone.push(texts.join('\n'));
       if (i === 0 && texts.length) said.push(texts.join('\n'));
     }
   });
-  return { tools, text: said.join('\n'), final: said.at(-1) || '' };
+  return { tools, text: said.join('\n'), final: said.at(-1) || '', all: everyone.join('\n') };
 }
 
 /**
@@ -136,8 +140,9 @@ export async function grade(g, obs, judge) {
     return { pass, reason: `${g.tool}${g.input_match ? ` /${g.input_match}/` : ''} used ${n} time(s); wanted ${min}${max === Infinity ? '+' : `-${max}`}` };
   }
   if (g.type === 'regex') {
-    const pass = new RegExp(g.pattern, g.flags || '').test(obs.text);
-    return { pass, reason: `/${g.pattern}/${g.flags || ''} ${pass ? 'matched' : 'did not match'} what the agent said` };
+    const everyone = g.scope === 'all';
+    const pass = new RegExp(g.pattern, g.flags || '').test(everyone ? obs.all : obs.text);
+    return { pass, reason: `/${g.pattern}/${g.flags || ''} ${pass ? 'matched' : 'did not match'} what ${everyone ? 'the agents' : 'the agent'} said` };
   }
   if (g.type === 'llm') return judge(g.text, obs.final || obs.text);
   return { pass: false, reason: `grader type "${g.type}" is not supported by this runner` };

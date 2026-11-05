@@ -37,10 +37,11 @@ describe('what a run did', () => {
     assert.equal(o.tools[0].input, '{"id":"cost-report"}');
     assert.equal(o.text, 'first\nthe answer');
     assert.equal(o.final, 'the answer');
+    assert.equal(o.all, 'first\nthe answer\nchild words', 'all: what every agent said');
   });
 
   test('a run with no sessions did nothing', () => {
-    assert.deepEqual(observe([]), { tools: [], text: '', final: '' });
+    assert.deepEqual(observe([]), { tools: [], text: '', final: '', all: '' });
   });
 });
 
@@ -65,6 +66,13 @@ describe('grading', () => {
   test('regex reads what the agent said', async () => {
     assert.equal((await g({ type: 'regex', pattern: 'request(ed)? changes', flags: 'i' })).pass, true);
     assert.equal((await g({ type: 'regex', pattern: 'approve' })).pass, false);
+  });
+
+  test('a regex with scope: all also reads what dispatched agents said', async () => {
+    const both = observe([{ messages: [assistant([text('Verdict: Block.')])] }, { info: { parentID: 'x' }, messages: [assistant([text('Request changes: SQL injection')])] }]);
+    const regex = { file: 'g.md', text: '', type: 'regex', pattern: 'request changes', flags: 'i' };
+    assert.equal((await grade(regex, both, noJudge)).pass, false, 'the top-level agent paraphrased');
+    assert.equal((await grade({ ...regex, scope: 'all' }, both, noJudge)).pass, true);
   });
 
   test('llm asks the judge with the rubric and the final message', async () => {

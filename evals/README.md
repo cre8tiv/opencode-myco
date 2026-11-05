@@ -39,7 +39,7 @@ A case with no scaffold runs in an empty repository with the teams installed. Sc
 **Graders** are files in `graders/`:
 
 - `tool_used`: `tool` (a name, or an alternation such as `subagent|delegate`, matched against the whole tool name), optional `input_match` (a regular expression tested against the call's input as JSON), `min` (default 1) and `max` (`0` means it must not fire). Calls by dispatched agents count.
-- `regex`: `pattern` and optional `flags`, tested against everything the top-level agent said.
+- `regex`: `pattern` and optional `flags`, tested against everything the top-level agent said, or, with `scope: all`, everything every agent in the run said (use it to check a dispatched agent's own wording, which the top-level agent may paraphrase).
 - `llm`: the file's body is a rubric; a judge model gets it with the agent's final message and answers PASS or FAIL.
 
 A skill is a `skill` call with `"id": "<name>"`. The two tools that have a skill and a tool of their own (`start_work`, `log_friction`) are graded as either.
