@@ -1,6 +1,6 @@
 ---
 type: tool_used
-tool: Write
+tool: write|edit
 min: 0
 max: 0
 ---

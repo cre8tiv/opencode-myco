@@ -1,5 +1,5 @@
 ---
 type: tool_used
-tool: Skill
-input_match: '"skill"\s*:\s*"(?:[\w-]+:)?init-team"'
+tool: skill
+input_match: '"id"\s*:\s*"init-team"'
 ---

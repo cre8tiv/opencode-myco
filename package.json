@@ -12,7 +12,6 @@
     "drift": "node scripts/drift.mjs",
     "check:versions": "node scripts/check-version-bumps.mjs",
     "sync:agents": "node scripts/sync-agent-blocks.mjs",
-    "eval": "claude plugin eval . --tag portable --scaffold --ablation none --trust-plugin --no-publish --allow-tools Write --max-cost-usd 15",
-    "eval:all": "claude plugin eval . --scaffold --ablation none --trust-plugin --no-publish --allow-tools Write --max-cost-usd 15"
+    "eval": "node scripts/eval.mjs"
   }
 }
