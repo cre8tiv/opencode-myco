@@ -11,7 +11,7 @@ npm run eval -- --tag negative --runs 3                  # every near-miss case,
 npm run eval -- --model openrouter/anthropic/claude-haiku-5.5 --judge-model <another model>
 ```
 
-Options: `--case <text>` (name contains), `--tag <tag>`, `--runs <n>` (default 1), `--model <ref>` and `--judge-model <ref>` (`provider/model`, default `openrouter/anthropic/claude-haiku-5.5` for both; the judge defaults to the model under test), `--fail-under <0..1>` (exit 1 when a case's mean score is lower), `--keep` (leave each run's repository for inspection; delete it afterwards), `--list`.
+Options: `--case <text>` (name contains; comma-separated for several), `--tag <tag>`, `--runs <n>` (default 1), `--model <ref>` and `--judge-model <ref>` (`provider/model`, default `openrouter/anthropic/claude-haiku-5.5` for both; the judge defaults to the model under test), `--fail-under <0..1>` (exit 1 when a case's mean score is lower), `--keep` (leave each run's repository for inspection; delete it afterwards), `--list`.
 
 ## How a run works
 

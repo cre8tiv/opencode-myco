@@ -159,6 +159,15 @@ else console.log(JSON.stringify({ data: db.contexts[path.split('/')[3]] || [] })
     assert.match(r.stdout, /the run left no session/);
   });
 
+  test('--case takes several, comma-separated', async (t) => {
+    const sb = sandbox(t);
+    const { script } = standIn(sb, { sessions: [], contexts: {} });
+    const r = await evalRun(sb, script, ['--list', '--case', 'cost-report-fires,log-friction-fires']);
+    assert.match(r.stdout, /cost-report-fires/);
+    assert.match(r.stdout, /log-friction-fires/);
+    assert.doesNotMatch(r.stdout, /start-work-fires/);
+  });
+
   test('--list shows the cases without running anything', async (t) => {
     const sb = sandbox(t);
     const { script, calls } = standIn(sb, { sessions: [], contexts: {} });

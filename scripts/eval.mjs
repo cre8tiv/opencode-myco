@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Behavior evals: runs each case against a real model in OpenCode and grades what the agents did.
 //
-//   node scripts/eval.mjs [--case <text>] [--tag <tag>] [--runs <n>] [--model <ref>] [--judge-model <ref>]
+//   node scripts/eval.mjs [--case <text>[,<text>...]] [--tag <tag>] [--runs <n>] [--model <ref>] [--judge-model <ref>]
 //                         [--fail-under <0..1>] [--keep] [--list]
 //
 // A run is a throwaway git repository: the case's scaffold, the teams installed into it (--project), a
@@ -137,7 +137,7 @@ async function main() {
   const opts = parseArgs(process.argv.slice(2));
   const cases = caseDirs(EVALS)
     .map((d) => loadCase(d, EVALS))
-    .filter((c) => (typeof opts.case !== 'string' || c.name.includes(opts.case)) && (typeof opts.tag !== 'string' || c.tags.includes(opts.tag)));
+    .filter((c) => (typeof opts.case !== 'string' || opts.case.split(',').some((t) => t && c.name.includes(t.trim()))) && (typeof opts.tag !== 'string' || c.tags.includes(opts.tag)));
   if (opts.list) {
     for (const c of cases) console.log(`${c.name}  [${c.tags.join(', ')}]  ${c.graders.length} grader(s)`);
     return;
