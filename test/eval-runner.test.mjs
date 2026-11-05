@@ -101,14 +101,16 @@ const note = (o) => appendFileSync(${JSON.stringify(log)}, JSON.stringify(o) + '
 if (args[0] === 'run') {
   const prompt = args.at(-1);
   const judging = prompt.includes('RUBRIC');
-  note({ run: true, judging, model: args[args.indexOf('--model') + 1], cwd: process.cwd(), agents: existsSync('.opencode/agents') ? readdirSync('.opencode/agents').sort() : [], config: existsSync('opencode.json') ? readFileSync('opencode.json', 'utf8') : null, prompt: judging ? '(judge)' : prompt });
+  note({ run: true, judging, pwd: process.env.PWD, model: args[args.indexOf('--model') + 1], cwd: process.cwd(), agents: existsSync('.opencode/agents') ? readdirSync('.opencode/agents').sort() : [], config: existsSync('opencode.json') ? readFileSync('opencode.json', 'utf8') : null, prompt: judging ? '(judge)' : prompt });
   if (judging) console.log(JSON.stringify({ type: 'text', sessionID: 'ses_judge', part: { text: ${JSON.stringify(judge)} } }));
   else if (db.sessions.length) console.log(JSON.stringify({ type: 'step_start', sessionID: db.sessions[0].id }));
   process.exit(0);
 }
 if (args[0] === 'session') { note({ deleted: args[2] }); process.exit(0); }
 const path = args.at(-1);
-if (path.startsWith('/api/session/') && path.endsWith('/context')) console.log(JSON.stringify({ data: db.contexts[path.split('/')[3]] || [] }));
+const lastRun = () => readFileSync(${JSON.stringify(log)}, 'utf8').trim().split('\\n').map((l) => JSON.parse(l)).filter((c) => c.run && !c.judging).at(-1);
+if (path.startsWith('/api/session/') && path.split('/').length === 4) console.log(JSON.stringify({ data: { id: path.split('/')[3], location: { directory: process.env.STAND_IN_WHERE || lastRun().cwd } } }));
+else if (path.startsWith('/api/session/') && path.endsWith('/context')) console.log(JSON.stringify({ data: db.contexts[path.split('/')[3]] || [] }));
 else { console.error('stand-in: no route ' + path); process.exit(1); }
 `);
     const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
@@ -124,6 +126,7 @@ else { console.error('stand-in: no route ' + path); process.exit(1); }
     assert.match(r.stdout, /^1\.00 {2}team-ops\/cost-report-fires/m);
     const run = calls().find((c) => c.run);
     assert.equal(run.model, 'p/m');
+    assert.equal(run.pwd, run.cwd, '$PWD names the repository, or OpenCode would work in the directory the runner was started from');
     assert.match(run.prompt, /order-exceptions design package/);
     assert.ok(run.agents.includes('engineering-team') && run.agents.includes('team-ops'), 'the teams were installed into the repository');
     assert.deepEqual(JSON.parse(run.config).permission, { shell: 'deny', edit: 'deny', webfetch: 'deny', websearch: 'deny' });
@@ -162,6 +165,15 @@ else { console.error('stand-in: no route ' + path); process.exit(1); }
     const r = await evalRun(sb, script, ['--case', 'security-reviewer-finds-seeded-gaps']);
     assert.deepEqual(calls().filter((c) => c.deleted && c.deleted !== 'ses_judge').map((c) => c.deleted).sort(), ['ses_a', 'ses_child']);
     assert.doesNotMatch(r.stdout, /(wrote-review|dispatched)\.md failed/, 'the dispatch, and the dispatched agent\'s write, count');
+  });
+
+  test('a run that worked somewhere other than its own repository is not graded', async (t) => {
+    const sb = sandbox(t);
+    const { script, calls } = standIn(sb, { sessions: [{ id: 'ses_a' }], contexts: { ses_a: [assistant([tool('skill', { id: 'cost-report' })])] } });
+    const r = await runNode(join(ROOT, 'scripts', 'eval.mjs'), { args: ['--case', 'cost-report-fires'], cwd: sb.project, env: { ...sb.env, MYCO_OPENCODE: script, STAND_IN_WHERE: sb.project } });
+    assert.match(r.stdout, /^0\.00 {2}team-ops\/cost-report-fires/m);
+    assert.match(r.stdout, /not in its repository/);
+    assert.deepEqual(calls().filter((c) => c.deleted).map((c) => c.deleted), ['ses_a'], 'its session is still deleted');
   });
 
   test('a run that leaves no session is a zero with the reason, and --fail-under makes it a failing exit', async (t) => {

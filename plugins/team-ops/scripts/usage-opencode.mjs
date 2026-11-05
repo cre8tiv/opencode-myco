@@ -151,7 +151,10 @@ export function usageRecords({ lead, children = new Map(), snap = new Date().toI
  */
 export function execOpencode(args, cwd, timeoutMs = 120000) {
   const script = process.env.MYCO_OPENCODE;
-  const opts = { cwd, encoding: /** @type {const} */ ('utf8'), timeout: timeoutMs, maxBuffer: 256 * 1024 * 1024 };
+  // spawn's cwd does not change $PWD, and OpenCode takes its directory from $PWD when it is set: a child started
+  // from another directory would otherwise work in the caller's (seen: eval runs executed in the repository the
+  // runner was started from, not in their own).
+  const opts = { cwd, env: { ...process.env, PWD: cwd }, encoding: /** @type {const} */ ('utf8'), timeout: timeoutMs, maxBuffer: 256 * 1024 * 1024 };
   const res = script ? spawnSync(process.execPath, [script, ...args], opts) : spawnSync('opencode', args, opts);
   // A spawn that failed has no exit status: say why, so a missing binary is not confused with a timeout.
   const missing = res.error?.code === 'ENOENT';

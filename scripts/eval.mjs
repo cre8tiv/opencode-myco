@@ -131,11 +131,19 @@ function runCase(c, o) {
       /** @param {string} id */
       const load = (id) => {
         made.push(id);
+        if (made.length === 1) {
+          // Never grade a run that did not happen in its own repository: it would have worked in, and could have
+          // changed, whatever directory the runner was started from.
+          const where = api(['GET', `/api/session/${id}`], dir)?.data?.location?.directory;
+          if (!where || realpathSync(where) !== dir) throw new Error(`the run worked in ${where}, not in its repository ${dir}`);
+        }
         const messages = dataOf(api(['GET', `/api/session/${id}/context`], dir));
         loaded.push({ info: {}, messages });
         for (const d of dispatchesOf(messages)) if (!made.includes(d.sessionID)) load(d.sessionID);
       };
       load(sessionID);
+    } catch (e) {
+      return { obs: observe([]), error: e instanceof Error ? e.message : String(e) };
     } finally {
       deleteSessions(made, dir);
     }
