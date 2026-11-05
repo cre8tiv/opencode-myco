@@ -43,7 +43,7 @@ Two things to watch:
 
 ## Verdict format
 
-Report back to the tech lead with one of three verdicts. If automated reviewers commented, your verdict must account for every one of their findings by disposition — the lead uses that to decide whether the PR is clear to merge, and an unaddressed bot finding is a blocker it can't evaluate itself.
+Report back to the tech lead with one of three verdicts, **in exactly these words** and first, as `Verdict: <verdict>`: the lead and the merge gate's checks match on them, so "Block", "Reject" and "LGTM" are not verdicts. If automated reviewers commented, your verdict must account for every one of their findings by disposition — the lead uses that to decide whether the PR is clear to merge, and an unaddressed bot finding is a blocker it can't evaluate itself.
 
 - **Approve** — no blocking issues. List any non-blocking suggestions separately.
 - **Approve with follow-ups** — safe to proceed to QA, but list specific follow-up tasks that should be tracked (not blocking, but not forgotten).
