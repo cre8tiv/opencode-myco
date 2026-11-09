@@ -27,6 +27,8 @@ test('the leads dispatch with delegate, and the engineering lead isolates the ag
   assert.match(by['engineering-team/tech-lead'], /`sessionID`/);
   // QA starts from the IC's existing branch, so a branch to create would fail the dispatch.
   assert.match(by['engineering-team/tech-lead'], /QA no `branch`/);
+  // Isolated agents work from git, so what they read (profile, QA scaffold, MCP config) must be committed first.
+  assert.match(by['engineering-team/tech-lead'], /git status --porcelain \.claude\/team \.claude\/qa opencode\.json/);
   assert.match(by['design-team/product-lead'], /`sessionID`/);
 });
 
