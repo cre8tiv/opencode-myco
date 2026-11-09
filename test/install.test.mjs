@@ -4,7 +4,7 @@
 // installer owns.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ROOT, sandbox } from './helpers.mjs';
@@ -102,9 +102,25 @@ describe('transformAgent', () => {
     assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\nmode: subagent\ntier: worker\n---\nbody' }), /no description/);
     assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\ndescription: a\ntier: worker\n---\n' }), /mode must be primary or subagent/);
     assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\ndescription: a\nmode: subagent\n---\n' }), /no tier/);
+    assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\ndescription: a\nmode: subagent\ntier: reasong\n---\n' }), /tier must be one of lead, reasoning, worker, not "reasong"/);
     assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\ndescription: a\nmode: subagent\ntier: worker\npermission: {edit: deny}\n---\n' }), /permission must be one JSON object/);
     assert.throws(() => transformAgent({ id: 'design-team/architect', text: '---\ndescription: a\nmode: subagent\ntier: worker\ntools:\n  - Read\n---\n' }), /unsupported frontmatter/);
     assert.throws(() => transformAgent({ id: 'design-team/architect', text: 'no frontmatter' }), /no frontmatter/);
+  });
+});
+
+describe('an install without the agent registry', () => {
+  test('says to reinstall, in the doctor and in models.mjs, instead of listing no agents', (t) => {
+    // An install made before agents.json existed has neither it nor any sources to fall back on.
+    const sb = sandbox(t);
+    const target = join(sb.root, 'out');
+    install({ target });
+    rmSync(join(target, 'myco', 'agents.json'));
+    const doctor = spawnSync(process.execPath, [join(target, 'myco', 'team-ops', 'scripts', 'doctor.mjs'), '--cwd', sb.project, '--no-live'], { encoding: 'utf8' });
+    assert.match(doctor.stdout, /FAIL\s+agents: no agent registry .*reinstall/);
+    const models = spawnSync(process.execPath, [join(target, 'myco', 'team-ops', 'scripts', 'models.mjs'), 'show'], { encoding: 'utf8' });
+    assert.equal(models.status, 1);
+    assert.match(models.stderr, /no agent registry .*reinstall/);
   });
 });
 
@@ -114,7 +130,8 @@ describe('the agent sources', () => {
   test('are OpenCode agents: only description, mode, tier and permission, so nothing Claude Code reaches OpenCode or its provider', () => {
     assert.equal(sources.length, 11);
     for (const a of sources) {
-      const text = read(join(ROOT, 'plugins', a.id.split('/')[0], 'agents', `${a.id.split('/')[1]}.md`));
+      // Checked out with CRLF line endings on Windows.
+      const text = read(join(ROOT, 'plugins', a.id.split('/')[0], 'agents', `${a.id.split('/')[1]}.md`)).replace(/\r\n/g, '\n');
       const keys = topKeys(text);
       assert.deepEqual(keys.filter((k) => !['description', 'mode', 'tier', 'permission'].includes(k)), [], a.id);
       assert.doesNotThrow(() => parseAgent(a.id, text), a.id);

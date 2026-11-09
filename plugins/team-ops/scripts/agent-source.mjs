@@ -14,6 +14,9 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
+/** The model tiers a user maps their models onto; an agent's `tier` is one of them. */
+export const TIER_NAMES = ['lead', 'reasoning', 'worker'];
+
 /**
  * Splits an agent file into its flat frontmatter keys and its body, which is kept exactly. Frontmatter is flat
  * `key: value` lines; anything else is refused rather than guessed at.
@@ -45,7 +48,8 @@ export function parseAgent(id, text) {
   const mode = keys.get('mode');
   if (mode !== 'primary' && mode !== 'subagent') throw new Error(`${id}: mode must be primary or subagent, not "${mode}"`);
   const tier = keys.get('tier');
-  if (!tier) throw new Error(`${id}: no tier (lead, reasoning or worker)`);
+  if (!tier) throw new Error(`${id}: no tier (${TIER_NAMES.join(', ')})`);
+  if (!TIER_NAMES.includes(tier)) throw new Error(`${id}: tier must be one of ${TIER_NAMES.join(', ')}, not "${tier}"`);
   let permission;
   if (keys.has('permission')) {
     try {
@@ -74,11 +78,14 @@ export function readAgentSources(pluginsDir) {
 
 /**
  * The registry of team agents: the install's agents.json when `base` is an install root, else the sources in a
- * checkout's plugins directory.
+ * checkout's plugins directory. Neither is an error: an install made before the registry existed has no
+ * agents.json and no sources, and an empty map would read as "no agents" rather than "reinstall".
  * @param {string} base @returns {Record<string, {mode: string, tier: string}>}
  */
 export function loadAgentMap(base) {
   const registry = join(base, 'agents.json');
   if (existsSync(registry)) return JSON.parse(readFileSync(registry, 'utf8'));
-  return Object.fromEntries(readAgentSources(base).map((a) => [a.id, { mode: a.mode, tier: a.tier }]));
+  const sources = readAgentSources(base);
+  if (!sources.length) throw new Error(`no agent registry (${registry}) and no agent sources in ${base}: reinstall with \`node scripts/install.mjs\` from the myco checkout`);
+  return Object.fromEntries(sources.map((a) => [a.id, { mode: a.mode, tier: a.tier }]));
 }
