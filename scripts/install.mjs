@@ -9,6 +9,7 @@
 //   <target>/agents/<team>/<role>.md   agents, with their frontmatter rewritten for OpenCode
 //   <target>/skills/<name>/            skills
 //   <target>/myco/<team>/              each team's scripts and templates ($MYCO_ROOT/<team>)
+//   <target>/myco/agents.json          each agent's mode and tier, for what runs from the install (models.mjs, the doctor)
 //   <target>/myco/install.json         what was installed, for the doctor (<target>/myco/team-ops/scripts/doctor.mjs)
 //   <target>/plugins/myco/             the plugin that provides $MYCO_ROOT
 //
@@ -29,40 +30,23 @@
 // agent or skill text, and a model's `read` call can't expand one, so this script writes
 // the real absolute path into the installed copies.
 //
-// The agent sources keep their Claude Code frontmatter, so they stay identical to
-// upstream; this script is where it becomes OpenCode's. Only what the script owns is
-// replaced on a reinstall: a user's own agents, skills and models.json are left alone.
+// An agent source is already an OpenCode agent (description, mode, permission) plus a `tier`; this script
+// swaps the tier for the model the user's mapping gives it and adds the merge backstop. Only what the script
+// owns is replaced on a reinstall: a user's own agents, skills and models.json are left alone.
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { AGENT_MAP, MERGE_BACKSTOP, checkModels, modelLines, refFor } from '../plugins/team-ops/scripts/models.mjs';
+import { parseAgent, readAgentSources, splitAgent } from '../plugins/team-ops/scripts/agent-source.mjs';
+import { MERGE_BACKSTOP, checkModels, modelLines, refFor } from '../plugins/team-ops/scripts/models.mjs';
+
+export { splitAgent };
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /** Team directories copied under <target>/myco/<team>. */
 const TEAM_ASSETS = ['scripts', 'templates'];
-
-/**
- * Splits an agent file into its flat frontmatter keys and its body, which is kept
- * exactly. Agent frontmatter is flat `key: value` lines; anything else is refused
- * rather than guessed at.
- * @param {string} text @param {string} label for error messages
- * @returns {{keys: Map<string, string>, body: string}}
- */
-export function splitAgent(text, label) {
-  const m = text.replace(/\r\n/g, '\n').match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
-  if (!m) throw new Error(`${label}: no frontmatter`);
-  const keys = new Map();
-  for (const line of m[1].split('\n')) {
-    if (!line.trim()) continue;
-    const kv = line.match(/^([A-Za-z_][\w-]*):[ \t]*(.*)$/);
-    if (!kv) throw new Error(`${label}: unsupported frontmatter line "${line}"`);
-    keys.set(kv[1], kv[2].trim().replace(/^["']|["']$/g, ''));
-  }
-  return { keys, body: m[2] };
-}
 
 /** JSON strings are valid YAML double-quoted scalars, so descriptions with colons are safe. */
 const q = (v) => JSON.stringify(v);
@@ -97,25 +81,21 @@ function permissionFor(own, backstop) {
 }
 
 /**
- * An agent as OpenCode wants it: description kept; mode, model, variant and permission
- * from the install map and the user's model mapping; every other Claude Code key
- * dropped. OpenCode ignores keys it doesn't know and forwards them to the provider as
- * request parameters, so `isolation` and `disallowedTools` must not survive.
+ * An agent as installed: the source's description, mode and permission rules, with the model its tier (or its own
+ * entry) maps to in place of `tier`, and the merge backstop added unless merging is allowed. `tier` is the one key
+ * in a source that OpenCode does not know, and it forwards unknown keys to the model provider as request
+ * parameters, so it must not survive.
  * @param {{id: string, text: string, models?: ReturnType<typeof checkModels>, mergeBackstop?: boolean}} p id is "team/role"
  * @returns {string}
  */
 export function transformAgent({ id, text, models = { tiers: {}, agents: {} }, mergeBackstop = true }) {
-  const entry = AGENT_MAP[id];
-  if (!entry) throw new Error(`${id}: not in plugins/team-ops/scripts/opencode-agents.json`);
-  const { keys, body } = splitAgent(text, id);
-  const description = keys.get('description');
-  if (!description) throw new Error(`${id}: no description`);
-  const ref = refFor(models, id);
-  const fm = [`description: ${q(description)}`, `mode: ${entry.mode}`];
+  const agent = parseAgent(id, text);
+  const ref = refFor(models, id, agent.tier);
+  const fm = [`description: ${q(agent.description)}`, `mode: ${agent.mode}`];
   if (ref) fm.push(...modelLines(ref));
-  const permission = permissionFor(entry.permission, mergeBackstop);
+  const permission = permissionFor(agent.permission, mergeBackstop);
   if (permission) fm.push(...permissionLines(permission));
-  return `---\n${fm.join('\n')}\n---\n${body}`;
+  return `---\n${fm.join('\n')}\n---\n${agent.body}`;
 }
 
 /** The install root as written into agent and skill text: forward slashes on every platform. */
@@ -147,12 +127,9 @@ const teamsIn = (repo) => ls(join(repo, 'plugins')).filter((n) => existsSync(joi
 export function install({ target, models, repo = ROOT, mergeBackstop = true }) {
   const mapping = checkModels(models);
   const teams = teamsIn(repo);
-  const found = teams.flatMap((t) => ls(join(repo, 'plugins', t, 'agents')).filter((f) => f.endsWith('.md')).map((f) => `${t}/${f.replace(/\.md$/, '')}`));
-  const unmapped = found.filter((id) => !AGENT_MAP[id]);
-  const orphaned = Object.keys(AGENT_MAP).filter((id) => !found.includes(id));
-  if (unmapped.length || orphaned.length) {
-    throw new Error(`plugins/team-ops/scripts/opencode-agents.json is out of step with plugins/: no entry for [${unmapped}], no agent file for [${orphaned}]`);
-  }
+  // Every source is read, and so checked, before anything is written.
+  const sources = readAgentSources(join(repo, 'plugins'));
+  const found = sources.map((a) => a.id);
 
   const root = rootText(target);
   const skills = [];
@@ -188,6 +165,8 @@ export function install({ target, models, repo = ROOT, mergeBackstop = true }) {
     // Not installed from a git checkout.
   }
   mkdirSync(join(target, 'myco'), { recursive: true });
+  // The agents' modes and tiers, for what runs from the install (the doctor, models.mjs): the installed agents no longer say their tier.
+  writeFileSync(join(target, 'myco', 'agents.json'), JSON.stringify(Object.fromEntries(sources.map((a) => [a.id, { mode: a.mode, tier: a.tier }])), null, 2) + '\n');
   writeFileSync(join(target, 'myco', 'install.json'), JSON.stringify({ installedAt: new Date().toISOString(), source, teams: versions, agents: found, skills, mergeBackstop }, null, 2) + '\n');
   return { agents: found, skills, teams };
 }

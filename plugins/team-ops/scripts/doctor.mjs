@@ -19,7 +19,7 @@ import { spawnSync } from 'node:child_process';
 import { accessSync, constants, existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AGENT_MAP, checkModels, readCatalog, warnings } from './models.mjs';
+import { AGENT_MAP, AGENTS_PROBLEM, checkModels, readCatalog, warnings } from './models.mjs';
 import { profileKey } from './profile.mjs';
 import { streamDir, resolveStreamName } from './stream.mjs';
 
@@ -82,7 +82,8 @@ export function checkInstall({ root }) {
   }
 
   const missingAgents = Object.keys(AGENT_MAP).filter((id) => !existsSync(join(config, 'agents', `${id}.md`)));
-  out.push(missingAgents.length
+  if (AGENTS_PROBLEM) out.push(r('fail', 'agents', AGENTS_PROBLEM, REINSTALL));
+  else out.push(missingAgents.length
     ? r('fail', 'agents', `${missingAgents.length} of ${Object.keys(AGENT_MAP).length} agents are not installed: ${missingAgents.join(', ')}`, REINSTALL)
     : r('ok', 'agents', `all ${Object.keys(AGENT_MAP).length} installed`));
 

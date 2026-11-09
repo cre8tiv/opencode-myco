@@ -2,7 +2,7 @@
 // Maps the user's own models onto the team agents.
 //
 // Which models exist differs per user, so none is named anywhere in the teams. Agents
-// are grouped into tiers by what they need from a model (see opencode-agents.json):
+// are grouped into tiers by what they need from a model (the `tier` in each agent's source, see agent-source.mjs):
 // lead, reasoning, worker. The mapping is one file, <install root>/models.json:
 //
 //   { "tiers": { "lead": "provider/model#variant", ... }, "agents": { "team/role": "provider/model" } }
@@ -20,13 +20,22 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadAgentMap } from './agent-source.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const INSTALL_MAP = JSON.parse(readFileSync(join(HERE, 'opencode-agents.json'), 'utf8'));
-/** @type {Record<string, {mode: string, tier: string, permission?: object}>} */
-export const AGENT_MAP = INSTALL_MAP.agents;
+function loaded() {
+  try {
+    return { map: loadAgentMap(join(HERE, '..', '..')), problem: null };
+  } catch (e) {
+    return { map: {}, problem: e instanceof Error ? e.message : String(e) };
+  }
+}
+/** @type {Record<string, {mode: string, tier: string}>} every team agent, from the install's registry or a checkout's sources */
+export const AGENT_MAP = loaded().map;
+/** @type {string | null} why there is no agent map, e.g. an install made before the registry existed; the CLIs say so */
+export const AGENTS_PROBLEM = loaded().problem ?? null;
 /** @type {Record<string, Record<string, string>>} permission rules every agent gets unless merging is allowed */
-export const MERGE_BACKSTOP = Object.fromEntries(Object.entries(INSTALL_MAP.mergeBackstop).filter(([k]) => !k.startsWith('_')));
+export const MERGE_BACKSTOP = Object.fromEntries(Object.entries(JSON.parse(readFileSync(join(HERE, 'merge-backstop.json'), 'utf8'))).filter(([k]) => !k.startsWith('_')));
 export const TIERS = [...new Set(Object.values(AGENT_MAP).map((a) => a.tier))];
 
 /** Tokens a conversation needs beyond the agent's own prompt: tool schemas, instructions, work in progress. */
@@ -68,7 +77,7 @@ export function checkModels(raw) {
 }
 
 /** @returns {string | undefined} the model reference an agent gets from a mapping: its own entry, else its tier's */
-export const refFor = (models, id) => models.agents[id] || models.tiers[AGENT_MAP[id]?.tier];
+export const refFor = (models, id, tier = AGENT_MAP[id]?.tier) => models.agents[id] || models.tiers[tier];
 
 /**
  * An installed agent's text with its model set from `ref`, or with no model when ref is
@@ -185,6 +194,10 @@ function main(argv) {
   if (!existsSync(agentsDir)) {
     console.error(`This is not an installed copy (no ${agentsDir}). Run it from <config>/myco/team-ops/scripts/ after scripts/install.mjs.`);
     process.exit(2);
+  }
+  if (AGENTS_PROBLEM) {
+    console.error(AGENTS_PROBLEM);
+    process.exit(1);
   }
   const load = () => (existsSync(file) ? checkModels(JSON.parse(readFileSync(file, 'utf8'))) : checkModels({}));
   const report = (models) => {
