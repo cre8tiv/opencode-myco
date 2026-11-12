@@ -140,7 +140,7 @@ Then tell the user, briefly:
 
 1. **What you detected and what you asked** — so they can spot a wrong inference.
 2. **Which commands you verified by running** vs. took on trust.
-3. **What to commit**: `.claude/team/project.md`, `.claude/team/knowledge.md`, the `.claude/qa/` scaffold, and `opencode.json` if you touched it.
+3. **What to commit**: `.claude/team/project.md`, `.claude/team/knowledge.md`, the `.claude/qa/` scaffold, and `opencode.json` if you touched it. Run `git status --porcelain` on those paths before you finish and say plainly which are still uncommitted: every IC and QA run works in a worktree made from git, so anything uncommitted is invisible to them, and the team should not be given a ticket until these are committed.
 4. **The next step** — one concrete action, not a menu (see below). Mention that `agent-coach` is for later: after a week or a batch of tickets, since it needs traffic before its three-occurrence threshold means anything.
 5. **The merge policy in plain words** — "agents will/won't merge without you, and here's how you'll be told" — plus the verified gate result.
 6. **Anything you deliberately left blank** and what would fill it in.
