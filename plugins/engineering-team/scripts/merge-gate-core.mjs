@@ -232,11 +232,16 @@ export function mergeVerdict({ agent, tool, input, cwd }) {
           'Dispatch qa-specialist against the PR branch, wait for a Pass, then merge.'
       : null;
   }
-  return found?.what
-    ? `Blocked: this project's merge_policy is "${policy}", so merging is a human's ` +
-        `action, not yours (attempted: ${found.what}). Finish the handoff instead — post the ` +
-        'review and QA verdicts on the PR, request review from the human named in ' +
-        '.claude/team/project.md, send the notification recorded there, and report that ' +
-        'the PR is ready to merge. Leave the ticket in its review/validated state.'
-    : null;
+  if (!found?.what) return null;
+  const push = found.what.startsWith('git push');
+  const head = `Blocked: this project's merge_policy is "${policy}", so ${push ? 'pushing to the trunk' : 'merging'} is a human's ` +
+    `action, not yours (attempted: ${found.what}). `;
+  // A push to the trunk has no PR to post on: the project may not have a PR tool at all.
+  return push
+    ? head + 'Leave the work on its feature branch (a local commit is enough), tell the human which branch and ' +
+        'commit it is on, with the review and QA verdicts, and report that it is ready for them to merge. ' +
+        'Leave the ticket in its review/validated state.'
+    : head + 'Finish the handoff instead — post the review and QA verdicts on the PR, request review from ' +
+        'the human named in .claude/team/project.md, send the notification recorded there, and report that ' +
+        'the PR is ready to merge. Leave the ticket in its review/validated state.';
 }

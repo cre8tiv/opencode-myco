@@ -184,6 +184,22 @@ describe('cost.mjs over OpenCode', () => {
     assert.equal(group(r.json, 'order-exceptions/arch'), undefined);
   });
 
+  test('an interrupted dispatch, whose call has no result, is still counted through the session that names its lead', async (t) => {
+    const { f, report } = setup(t, (db) => {
+      const call = db.contexts.ses_lead.flatMap((m) => m.content).find((c) => c.name === 'subagent');
+      call.state.metadata = undefined; // the call never returned
+      const arch = db.sessions.find((s) => s.id === 'ses_arch');
+      delete arch.parentID; // an isolated agent has no parent session, only the plugin's link
+      arch.metadata = { mycoParent: 'ses_lead' };
+      arch.title = '[order-exceptions/arch] draft architecture';
+      return db;
+    });
+    const r = await report();
+    assert.equal(r.status, 0, r.stderr);
+    near(group(r.json, 'order-exceptions/arch').usd, 20);
+    assert.ok(f);
+  });
+
   test('a model with no list price is shown as unpriced, not as free', async (t) => {
     const { report } = setup(t, (db) => {
       db.contexts.ses_lead = [{ ...db.contexts.ses_lead[1], model: { id: 'qwen3-coder', providerID: 'ollama' } }, ...db.contexts.ses_lead.slice(2)];

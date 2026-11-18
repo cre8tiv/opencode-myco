@@ -71,6 +71,16 @@ describe('merge_policy: human-approval', () => {
     });
   }
 
+  test('a blocked push to the trunk says to hand off the branch, not to post on a PR', async (t) => {
+    const sb = sandbox(t);
+    writeProfile(sb.project, { merge_policy: 'human-approval', trunk_branch: 'main' });
+    const push = await gate(sb, { command: 'git push origin main' });
+    assert.match(push.stderr, /feature branch/);
+    assert.doesNotMatch(push.stderr, /post the review and QA verdicts on the PR/);
+    const merge = await gate(sb, { command: 'gh pr merge 42' });
+    assert.match(merge.stderr, /post the review and QA verdicts on the PR/);
+  });
+
   const ALLOWED = [
     // How an IC keeps its worktree current and publishes its branch.
     'git merge origin/main',
