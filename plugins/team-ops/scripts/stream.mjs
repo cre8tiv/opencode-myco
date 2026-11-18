@@ -18,7 +18,7 @@ export function resolveStreamName(startDir) {
 }
 
 export function streamDir(startDir) {
-  const d = join(homedir(), '.claude', 'ops', resolveStreamName(startDir));
+  const d = join(process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share'), 'myco', 'ops', resolveStreamName(startDir));
   mkdirSync(d, { recursive: true });
   return d;
 }

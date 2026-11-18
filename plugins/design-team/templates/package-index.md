@@ -36,7 +36,7 @@ Table with columns `Document | Author | Status | Open questions`. List only the 
 
 ## Codebases
 
-The code this package was designed against, so engineering knows where the work lands and how far the code has moved since. Table with columns `Codebase | Role | Commit grounded at | Slices that change it`. One row per codebase from the architecture's *Grounded against* table — this repository included when it holds the code. *Role* is *this repo*, *system*, *contract* or *reference*, as in `.claude/team/knowledge.md`.
+The code this package was designed against, so engineering knows where the work lands and how far the code has moved since. Table with columns `Codebase | Role | Commit grounded at | Slices that change it`. One row per codebase from the architecture's *Grounded against* table — this repository included when it holds the code. *Role* is *this repo*, *system*, *contract* or *reference*, as in `.myco/team/knowledge.md`.
 
 ## Readiness
 

@@ -1,7 +1,7 @@
 // Shared test helpers: an isolated home and project per test, a way to run a plugin script,
 // builders for team profiles and the stream's files, and a local OTLP collector.
 //
-// Every script that writes under ~/.claude/ops resolves the home directory through
+// Every script that writes under ~/.local/share/myco/ops resolves the home directory through
 // os.homedir(), which reads HOME on macOS/Linux and USERPROFILE on Windows. Tests point
 // both at a temp directory so they never touch the real one, on any platform.
 import { spawn } from 'node:child_process';
@@ -28,7 +28,7 @@ export function sandbox(t) {
   mkdirSync(home, { recursive: true });
   mkdirSync(project, { recursive: true });
   t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
-  return { root, home, project, env: { HOME: home, USERPROFILE: home } };
+  return { root, home, project, env: { HOME: home, USERPROFILE: home, XDG_DATA_HOME: join(home, '.local', 'share') } };
 }
 
 /**
@@ -69,7 +69,7 @@ export function runNode(file, opts = {}) {
  */
 export function writeProfile(projectDir, frontmatter, name = 'project.md') {
   const body = typeof frontmatter === 'string' ? frontmatter : Object.entries(frontmatter).map(([k, v]) => `${k}: ${v}`).join('\n');
-  const p = join(projectDir, '.claude', 'team', name);
+  const p = join(projectDir, '.myco', 'team', name);
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, `---\n${body}\n---\n\n# Profile\n`, 'utf8');
   return p;
@@ -81,8 +81,8 @@ export function readJsonl(file) {
   return readFileSync(file, 'utf8').split('\n').filter((l) => l.trim()).map((l) => JSON.parse(l));
 }
 
-/** @param {string} home @param {string} stream @param {string} file @returns {string} path under ~/.claude/ops/<stream>/ */
-export const opsFile = (home, stream, file) => join(home, '.claude', 'ops', stream, file);
+/** @param {string} home @param {string} stream @param {string} file @returns {string} path under ~/.local/share/myco/ops/<stream>/ */
+export const opsFile = (home, stream, file) => join(home, '.local', 'share', 'myco', 'ops', stream, file);
 
 // ---------- time ----------
 

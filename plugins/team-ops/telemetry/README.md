@@ -46,11 +46,11 @@ It sends OTLP over HTTP with a JSON body, which most backends and every OTel col
 
 **History.** Cost the report has already recorded stays local until you send it: run `node "<config>/myco/team-ops/scripts/cost.mjs" --export` in each project. Earlier events aren't re-sent.
 
-**Is it working?** `~/.claude/ops/<stream>/otlp-status.json` records the last send of each signal: when, where, how much, and the error if it failed.
+**Is it working?** `~/.local/share/myco/ops/<stream>/otlp-status.json` records the last send of each signal: when, where, how much, and the error if it failed.
 
 ## The data
 
-Everything team-ops records — locally in `~/.claude/ops/<stream>/` and in the export — shares one set of fields, so friction, failures and cost can be joined on the work they belong to.
+Everything team-ops records — locally in `~/.local/share/myco/ops/<stream>/` and in the export — shares one set of fields, so friction, failures and cost can be joined on the work they belong to.
 
 ### Shared fields
 
@@ -114,7 +114,7 @@ By default, events carry only names and categories: which agent, which work, whi
 
 ### Local files
 
-The same records, in `~/.claude/ops/<stream>/`: `events.jsonl` (events, one per line, with `ts` and `event` — the event's name), `friction.jsonl` (with `ts`, `kind` and `note`), and `usage.jsonl` (token snapshots; see the team-ops README). They always hold the free text. Friction recorded before this version has `ticket` where newer records have `work`, and no `session`.
+The same records, in `~/.local/share/myco/ops/<stream>/`: `events.jsonl` (events, one per line, with `ts` and `event` — the event's name), `friction.jsonl` (with `ts`, `kind` and `note`), and `usage.jsonl` (token snapshots; see the team-ops README). They always hold the free text. Friction recorded before this version has `ticket` where newer records have `work`, and no `session`.
 
 ## The example stack
 

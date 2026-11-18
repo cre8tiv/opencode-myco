@@ -28,7 +28,7 @@ const source = ({ mode = 'subagent', tier = 'worker', permission } = {}) =>
   `---\ndescription: Does a thing: with a colon, and "quotes".\nmode: ${mode}\ntier: ${tier}\n${permission ? `permission: ${JSON.stringify(permission)}\n` : ''}---${BODY}`;
 const SOURCE = source();
 const REVIEWER = source({ tier: 'reasoning', permission: { edit: 'deny' } });
-const COACH = source({ mode: 'primary', tier: 'reasoning', permission: { edit: { '*': 'deny', '.claude/ops/reports/**': 'allow', '*/.claude/ops/reports/**': 'allow' } } });
+const COACH = source({ mode: 'primary', tier: 'reasoning', permission: { edit: { '*': 'deny', '.myco/ops/reports/**': 'allow', '*/.myco/ops/reports/**': 'allow' } } });
 
 describe('transformAgent', () => {
   test('keeps the description and body exactly, drops tier, adds the backstop', () => {
@@ -55,7 +55,7 @@ describe('transformAgent', () => {
     // "*" first, then the allows: the last matching rule wins.
     const editBlock = coach.match(/^ {2}edit:\n((?: {4}.*\n)+)/m)[1];
     const rules = [...editBlock.matchAll(/^ {4}"([^"]+)": (\w+)$/gm)].map((m) => [m[1], m[2]]);
-    assert.deepEqual(rules, [['*', 'deny'], ['.claude/ops/reports/**', 'allow'], ['*/.claude/ops/reports/**', 'allow']]);
+    assert.deepEqual(rules, [['*', 'deny'], ['.myco/ops/reports/**', 'allow'], ['*/.myco/ops/reports/**', 'allow']]);
   });
 
   test('every agent denies gh pr merge, so the rule holds even if the plugin does not load', () => {
@@ -116,9 +116,9 @@ describe('an install without the agent registry', () => {
     const target = join(sb.root, 'out');
     install({ target });
     rmSync(join(target, 'myco', 'agents.json'));
-    const doctor = spawnSync(process.execPath, [join(target, 'myco', 'team-ops', 'scripts', 'doctor.mjs'), '--cwd', sb.project, '--no-live'], { encoding: 'utf8' });
+    const doctor = spawnSync(process.execPath, [join(target, 'myco', 'team-ops', 'scripts', 'doctor.mjs'), '--cwd', sb.project, '--no-live'], { encoding: 'utf8', env: { ...process.env, ...sb.env } });
     assert.match(doctor.stdout, /FAIL\s+agents: no agent registry .*reinstall/);
-    const models = spawnSync(process.execPath, [join(target, 'myco', 'team-ops', 'scripts', 'models.mjs'), 'show'], { encoding: 'utf8' });
+    const models = spawnSync(process.execPath, [join(target, 'myco', 'team-ops', 'scripts', 'models.mjs'), 'show'], { encoding: 'utf8', env: { ...process.env, ...sb.env } });
     assert.equal(models.status, 1);
     assert.match(models.stderr, /no agent registry .*reinstall/);
   });

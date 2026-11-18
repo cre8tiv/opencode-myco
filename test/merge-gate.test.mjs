@@ -217,7 +217,7 @@ describe('policy resolution', () => {
   test('the profile is found from inside a worktree below the project root', async (t) => {
     const sb = sandbox(t);
     writeProfile(sb.project, { merge_policy: 'autonomous' });
-    const worktree = join(sb.project, '.claude', 'worktrees', 'agent-1', 'src');
+    const worktree = join(sb.project, 'worktrees', 'agent-1', 'src');
     mkdirSync(worktree, { recursive: true });
     const r = verdict({ agent: IC, cwd: worktree, tool: 'shell', input: { command: 'gh pr merge 1' } });
     assert.equal(r.status, 0);
@@ -317,10 +317,10 @@ describe('merge_policy: autonomous requires a passing QA run', () => {
     const push = () => git(sb.project, 'push', '-q', 'origin', 'feat/x');
     /** Commits a QA report, as the qa-specialist does, and pushes. */
     const qaReport = (dir, lines, { sha = git(sb.project, 'rev-parse', 'HEAD') } = {}) => {
-      mkdirSync(join(sb.project, '.claude', 'qa', 'runs', dir), { recursive: true });
+      mkdirSync(join(sb.project, '.myco', 'qa', 'runs', dir), { recursive: true });
       const body = lines.map((l) => l.replace('<sha>', sha)).join('\n') + '\n';
-      writeFileSync(join(sb.project, '.claude', 'qa', 'runs', dir, 'report.md'), body);
-      git(sb.project, 'add', '.claude/qa');
+      writeFileSync(join(sb.project, '.myco', 'qa', 'runs', dir, 'report.md'), body);
+      git(sb.project, 'add', '.myco/qa');
       git(sb.project, 'commit', '-q', '-m', `qa ${dir}`);
       push();
     };
@@ -401,9 +401,9 @@ describe('merge_policy: autonomous requires a passing QA run', () => {
     const sb = sandbox(t);
     const r = repo(sb);
     r.qaReport('2026-10-12-X-1', PASS);
-    mkdirSync(join(sb.project, '.claude', 'qa', 'scripts'), { recursive: true });
-    writeFileSync(join(sb.project, '.claude', 'qa', 'scripts', 'smoke.sh'), 'echo ok\n');
-    git(sb.project, 'add', '.claude/qa');
+    mkdirSync(join(sb.project, '.myco', 'qa', 'scripts'), { recursive: true });
+    writeFileSync(join(sb.project, '.myco', 'qa', 'scripts', 'smoke.sh'), 'echo ok\n');
+    git(sb.project, 'add', '.myco/qa');
     git(sb.project, 'commit', '-q', '-m', 'qa script');
     r.push();
     assert.equal((await run(sb, r, 'gh pr merge 42')).status, 0);

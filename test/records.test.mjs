@@ -1,6 +1,6 @@
 // The records every team agent leaves in the event stream: what capture-core and friction-core write,
 // whichever host calls them. The OpenCode plugin decides which events become which records
-// (capture-opencode.test.mjs); these cover the record itself, read back from ~/.claude/ops/<stream>/.
+// (capture-opencode.test.mjs); these cover the record itself, read back from ~/.local/share/myco/ops/<stream>/.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -73,7 +73,7 @@ describe('events', () => {
 
   test('events from every worktree of a project land in one stream', async (t) => {
     const sb = project(t);
-    const wt = join(sb.project, '.claude', 'worktrees', 'agent-7');
+    const wt = join(sb.project, 'worktrees', 'agent-7');
     mkdirSync(wt, { recursive: true });
     for (const cwd of [sb.project, wt]) await recordEvent({ event: 'SessionEnd', agent: AGENT, cwd });
     assert.equal(events(sb).length, 2);

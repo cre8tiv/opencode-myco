@@ -33,8 +33,8 @@ const rec = (over) => ({
  *   arch     architect, opus, 1M out                      = $20 (ran during round-1)
  */
 function seed(sb) {
-  mkdirSync(join(sb.home, '.claude', 'ops', 'alpha-stream'), { recursive: true });
-  appendUsage(join(sb.home, '.claude', 'ops', 'alpha-stream'), [
+  mkdirSync(join(sb.home, '.local', 'share', 'myco', 'ops', 'alpha-stream'), { recursive: true });
+  appendUsage(join(sb.home, '.local', 'share', 'myco', 'ops', 'alpha-stream'), [
     rec({ work: 'order-exceptions/round-1', parent_work: 'order-exceptions/round-1', model: 'claude-opus-5-5', input: M, output: 100_000 }),
     rec({ work: 'order-exceptions/round-2', parent_work: 'order-exceptions/round-2', model: 'claude-sonnet-5-5', input: M, output: M }),
     rec({ agent_id: 'ses_arch', agent: ARCH, work: 'order-exceptions/arch', parent_work: 'order-exceptions/round-1', model: 'claude-opus-5-5', output: M }),
@@ -107,8 +107,8 @@ describe('cost.mjs', () => {
 
   test('a model with no price is reported as unpriced, not as free', async (t) => {
     const sb = project(t);
-    mkdirSync(join(sb.home, '.claude', 'ops', 'alpha-stream'), { recursive: true });
-    appendUsage(join(sb.home, '.claude', 'ops', 'alpha-stream'), [rec({ work: 'pkg/round-1', parent_work: 'pkg/round-1', model: 'claude-future-9', input: M })]);
+    mkdirSync(join(sb.home, '.local', 'share', 'myco', 'ops', 'alpha-stream'), { recursive: true });
+    appendUsage(join(sb.home, '.local', 'share', 'myco', 'ops', 'alpha-stream'), [rec({ work: 'pkg/round-1', parent_work: 'pkg/round-1', model: 'claude-future-9', input: M })]);
     const r = await report(sb);
     assert.equal(group(r.json, 'pkg/round-1').unpriced_models, true);
     const text = await runNode(COST, { args: ['--no-refresh'], cwd: sb.project, env: sb.env });

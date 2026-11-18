@@ -13,7 +13,7 @@ A design package is written for engineering: precise, cross-referenced, and long
 
 ## Before you start
 
-- **Read `.claude/team/design.md`.** `product_name` goes in page titles; `packages_dir` says where packages live.
+- **Read `.myco/team/design.md`.** `product_name` goes in page titles; `packages_dir` says where packages live.
 - **Read the package's `README.md`.** Its **Review** section records past rounds.
 
 ## Render a package

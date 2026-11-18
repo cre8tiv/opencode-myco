@@ -1,4 +1,4 @@
-// Reads keys from the host project's team profiles in .claude/team/.
+// Reads keys from the host project's team profiles in .myco/team/.
 //
 // Profiles are written by each team's setup — project.md by engineering-team's
 // /init-team, design.md by design-team's /init-design — and either may be absent.
@@ -42,7 +42,7 @@ export function profileKey(startDir, key, fallback = undefined) {
   let dir = resolve(startDir || process.cwd());
   for (let i = 0; i < 12; i++) {
     for (const name of PROFILES) {
-      const keys = frontmatter(join(dir, '.claude', 'team', name));
+      const keys = frontmatter(join(dir, '.myco', 'team', name));
       if (keys && keys[key] !== undefined) return keys[key];
     }
     const up = dirname(dir);

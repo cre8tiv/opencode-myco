@@ -46,7 +46,7 @@ describe('installed into OpenCode', { skip: !enabled && 'set MYCO_TEST_OPENCODE=
     const rules = (id, action) => agents.get(id).permissions.filter((p) => p.action === action).map((p) => `${p.resource}=${p.effect}`);
     assert.deepEqual(rules('engineering-team/code-reviewer', 'edit'), ['*=deny']);
     // The last matching rule wins, so the deny comes first and both path forms allow after it.
-    assert.deepEqual(rules('team-ops/agent-coach', 'edit'), ['*=deny', '.claude/ops/reports/**=allow', '*/.claude/ops/reports/**=allow']);
+    assert.deepEqual(rules('team-ops/agent-coach', 'edit'), ['*=deny', '.myco/ops/reports/**=allow', '*/.myco/ops/reports/**=allow']);
 
     assert.deepEqual(agents.get('design-team/architect').model, { id: 'model', providerID: 'test', variant: 'medium' });
   });

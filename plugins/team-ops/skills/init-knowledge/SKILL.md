@@ -1,20 +1,20 @@
 ---
 name: init-knowledge
-description: Record the documentation, knowledge sources and codebases every agent team in this project should consult — product docs, API references, internal engineering docs, knowledge graphs, runbooks, and the other repositories the work changes, builds against or imitates — with what each answers, which roles use it, how authoritative it is, and how to reach it. Detects every connected MCP server (including connectors that exist but aren't authorized) and every related repository (workspaces, submodules, sibling clones, internal packages, repos the docs name), asks what each is for, and writes .claude/team/knowledge.md. Run by the init-design and init-team skills as part of setup; run it directly to refresh the list when sources or repositories change.
+description: Record the documentation, knowledge sources and codebases every agent team in this project should consult — product docs, API references, internal engineering docs, knowledge graphs, runbooks, and the other repositories the work changes, builds against or imitates — with what each answers, which roles use it, how authoritative it is, and how to reach it. Detects every connected MCP server (including connectors that exist but aren't authorized) and every related repository (workspaces, submodules, sibling clones, internal packages, repos the docs name), asks what each is for, and writes .myco/team/knowledge.md. Run by the init-design and init-team skills as part of setup; run it directly to refresh the list when sources or repositories change.
 ---
 
 # init-knowledge
 
-Both teams start their work by grounding: the design team before it recommends anything, the engineering team before it decides how to build. Grounding is only as good as the sources the agents know about, and a connected documentation server nobody told them about might as well not exist. The same goes for code: agents read the repository they're running in, and nothing else unless told. When the system being changed lives in another repository, or the work builds against a shared SDK or service, the agents design and build without having seen it. Your job is to find every source and codebase worth consulting, record what each one is *for*, and write `.claude/team/knowledge.md` so every agent in every team can use it.
+Both teams start their work by grounding: the design team before it recommends anything, the engineering team before it decides how to build. Grounding is only as good as the sources the agents know about, and a connected documentation server nobody told them about might as well not exist. The same goes for code: agents read the repository they're running in, and nothing else unless told. When the system being changed lives in another repository, or the work builds against a shared SDK or service, the agents design and build without having seen it. Your job is to find every source and codebase worth consulting, record what each one is *for*, and write `.myco/team/knowledge.md` so every agent in every team can use it.
 
-If `.claude/team/knowledge.md` already exists — the other team's setup may have written it — this is a refresh: confirm what's there, verify it still works, add what's new, and keep anything a human wrote.
+If `.myco/team/knowledge.md` already exists — the other team's setup may have written it — this is a refresh: confirm what's there, verify it still works, add what's new, and keep anything a human wrote.
 
 ## 1. Detect
 
 - **Every MCP server configured for this project.** `opencode mcp list` shows each configured server and whether it is connected; group the tools you can see by server (a server's tools carry its name as a prefix). Don't stop at the servers you recognize by type: a server named after the product, a team, or an internal system is often the most valuable source in the project, and it's exactly the one a fixed checklist misses. For each server, read its tool names and descriptions to work out what it serves.
 - **Servers that are configured but not authorized.** `opencode mcp list` marks a remote server that needs OAuth sign-in as not authenticated. It's invisible to every agent until someone notices. Flag each one.
 - **Knowledge reached another way.** Session context that names a knowledge tool or CLI (a session-start note describing an internal knowledge base, say); documentation URLs in the repo's `README`, `AGENTS.md`, `CLAUDE.md` or `CONTRIBUTING.md`; docs directories in the repo; an `llms.txt` on a docs site. A docs site with no MCP server is still reachable by URL.
-- **What's already recorded.** Trackers, wikis and design tools named in `.claude/team/project.md` or `design.md` are configured there for their operational role. List them here too only if agents should also *consult* them for answers — a wiki usually should.
+- **What's already recorded.** Trackers, wikis and design tools named in `.myco/team/project.md` or `design.md` are configured there for their operational role. List them here too only if agents should also *consult* them for answers — a wiki usually should.
 
 Leave out servers that do things rather than answer things — browser automation, chat, calendars — unless the user says otherwise.
 
@@ -24,7 +24,7 @@ Leave out servers that do things rather than answer things — browser automatio
 - **Repositories it already points at:**
   - monorepo workspaces (`package.json` workspaces, `pnpm-workspace.yaml`, `go.work`, a `.sln`, Cargo workspaces) — these are parts of this repository, not separate codebases, but note which parts the work is likely to touch;
   - git submodules (`.gitmodules`);
-  - `additionalDirectories` in `.claude/settings.json` and `.claude/settings.local.json` — someone already decided agents need these;
+  - `external_directory` allow rules in `opencode.json` — someone already decided agents need these;
   - sibling git repositories in this repository's parent directory;
   - internal packages it depends on (an organization scope like `@org/*`, a private registry, a `replace` directive, a project reference) and the repositories they come from;
   - images built from other repositories in `docker-compose` files or deployment manifests;
@@ -66,7 +66,7 @@ You can't authorize on their behalf. Re-check once they confirm. Whatever they d
 
 ## 3. Write
 
-Copy `$MYCO_ROOT/team-ops/templates/knowledge.md` to `.claude/team/knowledge.md` and fill it in, or update the existing file.
+Copy `$MYCO_ROOT/team-ops/templates/knowledge.md` to `.myco/team/knowledge.md` and fill it in, or update the existing file.
 
 - **One row per source**, with exactly how to reach it: an MCP tool prefix, a URL, or a repo path.
 - **"Answers" is the column that matters.** An agent decides whether to consult a source by matching its question against this column. "Docs" tells it nothing; "what the product publicly supports: connectors, query features, limits" tells it when.
@@ -82,4 +82,4 @@ For each codebase, confirm it can be read at the recorded ref: list the local pa
 
 ## 5. Report
 
-In two or three lines: how many sources and codebases you recorded, which need authorizing or access and by whom, and what's missing. If you were invoked by the `init-design` or `init-team` skill, return to that skill's next step rather than ending the conversation. Remind the user to commit `.claude/team/knowledge.md`.
+In two or three lines: how many sources and codebases you recorded, which need authorizing or access and by whom, and what's missing. If you were invoked by the `init-design` or `init-team` skill, return to that skill's next step rather than ending the conversation. Remind the user to commit `.myco/team/knowledge.md`.

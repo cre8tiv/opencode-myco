@@ -1,11 +1,11 @@
 ---
 name: init-design
-description: Set up the design-team agents for this project. Detects where design documents already live, which systems and codebases are reachable for grounding and context (tracker, wiki, Figma, Notion, Linear, and the repositories the designs will change or build against), where packages should be published (repo only, Confluence, Notion, Linear), and which design systems the ux-designer should work within; asks only what it cannot infer; then writes .claude/team/design.md. Use after installing the design-team plugin, when the product-lead reports the profile is missing, or when destinations, sources or the design system have changed.
+description: Set up the design-team agents for this project. Detects where design documents already live, which systems and codebases are reachable for grounding and context (tracker, wiki, Figma, Notion, Linear, and the repositories the designs will change or build against), where packages should be published (repo only, Confluence, Notion, Linear), and which design systems the ux-designer should work within; asks only what it cannot infer; then writes .myco/team/design.md. Use after installing the design-team plugin, when the product-lead reports the profile is missing, or when destinations, sources or the design system have changed.
 ---
 
 # init-design
 
-The design-team agents ship generic. Everything specific to this project — where packages live and get published, where to look for context, how prototypes are made, what compliance applies — lives in one file, `.claude/team/design.md`. Your job is to produce it and verify that what it names actually works.
+The design-team agents ship generic. Everything specific to this project — where packages live and get published, where to look for context, how prototypes are made, what compliance applies — lives in one file, `.myco/team/design.md`. Your job is to produce it and verify that what it names actually works.
 
 **Detect before you ask.** Read the repo and probe the tools available in this session first; ask only about what you can't determine; show the user what you found so they can correct it.
 
@@ -13,8 +13,8 @@ Run this in the user's main session, not as a subagent, so you can ask them ques
 
 ## 1. Detect
 
-- **Prior profile.** If `.claude/team/design.md` exists, this is a refresh: confirm what's still true, update what isn't, and keep any prose a human has written.
-- **The engineering profile.** If `.claude/team/project.md` exists, reuse its `stream` value and what it says about the product and tracker rather than asking again. Both teams must write telemetry to the same stream.
+- **Prior profile.** If `.myco/team/design.md` exists, this is a refresh: confirm what's still true, update what isn't, and keep any prose a human has written.
+- **The engineering profile.** If `.myco/team/project.md` exists, reuse its `stream` value and what it says about the product and tracker rather than asking again. Both teams must write telemetry to the same stream.
 - **Existing design documents in the repo.** Look for directories like `docs/`, `docs/design/`, `design/`, `rfcs/`, `adr/`, `specs/`, `prd/`, and files whose names suggest PRDs, specs, RFCs or ADRs. Where the team already keeps design docs is the best default for `packages_dir`; the format of their existing ADRs is the one to keep.
 - **Where the code lives.** Notice whether this repository holds the system the designs will change, or is a docs or design repository, one service of several, or new and empty. Don't settle it here: the knowledge-sources step below asks the user and records the codebases for both teams. Just carry what you noticed into it.
 - **Reachable systems.** Check which MCP tools this session actually has (`opencode mcp list` shows the configured servers; the tools you can see carry the real names). Look for trackers (Jira, Linear, GitHub, Azure DevOps), wikis (Confluence, Notion), design sources (Figma), document stores (Google Drive, SharePoint), and chat (Slack, Teams). Record the **real tool prefix** you see; a guessed prefix is how an agent ends up silently without a tool.
@@ -40,13 +40,13 @@ Don't ask about anything the user can't act on, and take a correction without re
 
 ### Knowledge sources
 
-Run the `init-knowledge` skill now. It finds every documentation and knowledge source this project can reach — including MCP servers named after the product or an internal system, and servers that are configured but not authorized — and every codebase the work touches beyond this repository, asks what each is for, and writes the shared `.claude/team/knowledge.md` that every team's agents read. If the file already exists because the other team's setup wrote it, the skill confirms and fills gaps rather than asking again. When it finishes, carry on here.
+Run the `init-knowledge` skill now. It finds every documentation and knowledge source this project can reach — including MCP servers named after the product or an internal system, and servers that are configured but not authorized — and every codebase the work touches beyond this repository, asks what each is for, and writes the shared `.myco/team/knowledge.md` that every team's agents read. If the file already exists because the other team's setup wrote it, the skill confirms and fills gaps rather than asking again. When it finishes, carry on here.
 
 For the design team, its question **"is the code this work changes in this repository, or somewhere else?"** matters most: if it's elsewhere, that repository is what the architect and tech designer ground in, and the design is worth little if they can't read it. Make sure the answer is recorded and the repository is readable before moving on.
 
 ## 3. Write the profile
 
-Copy `$MYCO_ROOT/design-team/templates/design-profile.md` to `.claude/team/design.md` and fill it in.
+Copy `$MYCO_ROOT/design-team/templates/design-profile.md` to `.myco/team/design.md` and fill it in.
 
 - **Replace or remove every placeholder.** An agent will read a leftover `<...>` as literal.
 - **Keep the frontmatter keys exactly as templated.** `stream` is read by the team-ops telemetry — if both profiles exist it must match `project.md`, or the teams' activity splits across two streams and cross-team handoffs become invisible. `packages_dir`, `publish_to`, `ux_prototypes`, `review_pages`, `product_name` and `review_hub` are read by the agents.
@@ -62,7 +62,7 @@ Check each thing the profile names, with a cheap read-only call, and report whic
 - Each publishing destination is reachable: read the named space, parent page, database or project.
 - Each grounding and context source answers a read: a tracker search, a wiki page, a Figma file's metadata.
 - Each repo design-system path you recorded exists.
-- Telemetry resolves to the configured stream: invoke the `log-friction` skill once with kind `tooling` and the note "init-design smoke test", and check the entry landed in `~/.claude/ops/<stream>/friction.jsonl`. If it landed in a directory named after the working directory, `stream:` isn't being read — check the frontmatter.
+- Telemetry resolves to the configured stream: invoke the `log-friction` skill once with kind `tooling` and the note "init-design smoke test", and check the entry landed in `~/.local/share/myco/ops/<stream>/friction.jsonl`. If it landed in a directory named after the working directory, `stream:` isn't being read — check the frontmatter.
 
 Never write to a destination to test it. A test page in someone's Confluence space is a mess you've made in their system.
 
@@ -72,7 +72,7 @@ Summarize briefly:
 
 1. **What you detected and what you asked**, so they can spot a wrong inference.
 2. **What you verified** vs. took on trust.
-3. **What to commit:** `.claude/team/design.md` and `.claude/team/knowledge.md`.
+3. **What to commit:** `.myco/team/design.md` and `.myco/team/knowledge.md`.
 4. **Anything you deliberately left blank** and what would fill it in.
 
 Don't paste the generated file into the chat; say where it is.

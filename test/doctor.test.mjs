@@ -101,8 +101,8 @@ describe('the merge backstop', () => {
 
 describe('the project', () => {
   const profile = (dir, text) => {
-    mkdirSync(join(dir, '.claude', 'team'), { recursive: true });
-    writeFileSync(join(dir, '.claude', 'team', 'project.md'), `---\n${text}\n---\n`);
+    mkdirSync(join(dir, '.myco', 'team'), { recursive: true });
+    writeFileSync(join(dir, '.myco', 'team', 'project.md'), `---\n${text}\n---\n`);
   };
 
   test('a project that allows merging, next to an install that forbids it, is a warning with the remedy', (t) => {
@@ -132,8 +132,8 @@ describe('the project', () => {
     profile(sb.project, 'stream: alpha');
     assert.equal(find(checkProject({ cwd: sb.project, root }), 'stream').level, 'ok');
     // Where the stream lives is a file, so the directory cannot be made.
-    rmSync(join(sb.home, '.claude'), { recursive: true, force: true });
-    writeFileSync(join(sb.home, '.claude'), 'not a directory');
+    rmSync(join(sb.home, '.local'), { recursive: true, force: true });
+    writeFileSync(join(sb.home, '.local'), 'not a directory');
     const bad = find(checkProject({ cwd: sb.project, root }), 'stream');
     assert.equal(bad.level, 'fail');
     assert.match(bad.message, /cannot be written/);

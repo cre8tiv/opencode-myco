@@ -45,8 +45,9 @@ designing or building against it; a repository missing from this list is one the
 All of them are **read-only** to the agents. Code is the truth of how something behaves today, but not a
 promise: a capability found only in code is *exists-internal*, like one found only in an internal source.
 
-**Reaching one:** use the local path if it exists — it may need adding to `additionalDirectories` in
-`.claude/settings.json` (or `--add-dir`) before an agent can read it. Otherwise read it remotely at the
+**Reaching one:** use the local path if it exists — OpenCode treats a path outside this project as external and may ask
+before an agent reads it, so allow it with an `external_directory` rule in `opencode.json` (committed, so
+isolated agents see it too). Otherwise read it remotely at the
 recorded ref (`gh api`, `gh repo clone --depth 1` into a scratch directory, or a GitHub MCP server).
 When a design is grounded against a codebase, record the commit it was read at.
 

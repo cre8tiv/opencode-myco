@@ -34,8 +34,8 @@ async function tools(t, { profile, storage, root } = {}) {
   const target = join(sb.root, 'oc');
   install({ target });
   if (profile) {
-    mkdirSync(join(sb.project, '.claude', 'team'), { recursive: true });
-    writeFileSync(join(sb.project, '.claude', 'team', 'project.md'), `---\n${profile}\n---\n`);
+    mkdirSync(join(sb.project, '.myco', 'team'), { recursive: true });
+    writeFileSync(join(sb.project, '.myco', 'team', 'project.md'), `---\n${profile}\n---\n`);
   }
   const defs = {};
   const ctx = { location: { directory: sb.project }, storage, tool: { transform: async (fn) => fn({ add: (d) => { defs[d.name] = d; } }) } };
@@ -43,7 +43,7 @@ async function tools(t, { profile, storage, root } = {}) {
   /** @returns {Promise<string>} the text a tool returns */
   const call = async (name, input, context) => (await defs[name].execute(input, context)).content;
   const friction = (stream = 'alpha-stream') => {
-    const file = join(sb.home, '.claude', 'ops', stream, 'friction.jsonl');
+    const file = join(sb.home, '.local', 'share', 'myco', 'ops', stream, 'friction.jsonl');
     return existsSync(file) ? read(file).trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
   };
   return { defs, call, friction, loaded, sb, target };
@@ -184,7 +184,7 @@ describe('telemetry never blocks delivery', () => {
   test('a report that cannot be written is reported to the agent, not thrown', async (t) => {
     const { call, sb } = await tools(t, { profile: 'stream: alpha-stream' });
     // Where the stream lives is a file, so the directory cannot be made.
-    writeFileSync(join(sb.home, '.claude'), 'not a directory');
+    writeFileSync(join(sb.home, '.local'), 'not a directory');
     const out = await call('log_friction', { kind: 'tooling', note: 'x' }, { sessionID: 's', agent: IC });
     assert.match(out, /could not be written/);
     assert.match(out, /carry on/);

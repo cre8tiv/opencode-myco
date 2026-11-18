@@ -23,7 +23,7 @@ traces stay on disk under `runs/` and are referenced by path from the report;
 
 ## How this project gets exercised
 
-See `.claude/team/project.md` — it records what kind of software this is, the build and
+See `.myco/team/project.md` — it records what kind of software this is, the build and
 run commands, which environments exist, and which automation harness already exists.
 QA extends what's there rather than inventing a parallel one.
 

@@ -1,11 +1,11 @@
 ---
 name: init-team
-description: Set up the engineering-team agents for this project. Detects the project's stack, test commands, tracker and environments; asks only what it cannot infer; then writes .claude/team/project.md and scaffolds the QA and ops directories. Use after installing the teams, when the agents report that .claude/team/project.md is missing, or when the project's commands, tracker or environments have changed and the profile needs refreshing.
+description: Set up the engineering-team agents for this project. Detects the project's stack, test commands, tracker and environments; asks only what it cannot infer; then writes .myco/team/project.md and scaffolds the QA and ops directories. Use after installing the teams, when the agents report that .myco/team/project.md is missing, or when the project's commands, tracker or environments have changed and the profile needs refreshing.
 ---
 
 # init-team
 
-The agents in this plugin ship deliberately generic. Everything project-specific — tracker and field names, workflow states, build and test commands, environments, how QA exercises the software — lives in one generated file, `.claude/team/project.md`. Your job is to produce that file, scaffold the directories the agents expect, and verify the install.
+The agents in this plugin ship deliberately generic. Everything project-specific — tracker and field names, workflow states, build and test commands, environments, how QA exercises the software — lives in one generated file, `.myco/team/project.md`. Your job is to produce that file, scaffold the directories the agents expect, and verify the install.
 
 **Detect before you ask.** The worst version of this skill is a twenty-question interrogation about things sitting in the repo. Read first, ask only about what you genuinely cannot infer, and show the user what you found so they can correct it.
 
@@ -22,7 +22,7 @@ Work out as much as possible from the repo, and note your confidence in each:
   - *Config in the repo:* `.coderabbit.yaml`, a Greptile config, `.github/copilot-instructions.md`, and any workflow under `.github/workflows/` or `azure-pipelines.yml` that invokes a review action (CodeRabbit, Greptile, Codex, `claude-code-action`, Copilot review).
   - *Recent PRs, which is the stronger signal* — a bot installed as a GitHub App leaves no trace in the repo. List a few recently merged PRs and look at who reviewed or commented; authors whose login ends in `[bot]` or which are marked as apps are your answer. Note roughly how long after PR open each one posted, and whether its approval appears as a required check.
 - **Existing conventions** — an `AGENTS.md`, `CLAUDE.md`, or `CONTRIBUTING.md` already in the repo. Harvest it rather than re-asking the user; contradicting an existing AGENTS.md is worse than being silent.
-- **Prior profile** — if `.claude/team/project.md` already exists, read it and treat this as a refresh: confirm what's still true, update what isn't, and don't discard the prose sections a human has written.
+- **Prior profile** — if `.myco/team/project.md` already exists, read it and treat this as a refresh: confirm what's still true, update what isn't, and don't discard the prose sections a human has written.
 
 ## 2. Discover tracker fields rather than asking for IDs
 
@@ -63,11 +63,11 @@ When the user corrects a detection, take the correction and don't re-litigate it
 
 ### Knowledge sources
 
-Run the `init-knowledge` skill now. It finds every documentation and knowledge source this project can reach — including MCP servers named after the product or an internal system, and servers that are configured but not authorized — and every codebase the work builds against or imitates beyond this repository, asks what each is for, and writes the shared `.claude/team/knowledge.md` that every team's agents read. If the file already exists because the other team's setup wrote it, the skill confirms and fills gaps rather than asking again. When it finishes, carry on here.
+Run the `init-knowledge` skill now. It finds every documentation and knowledge source this project can reach — including MCP servers named after the product or an internal system, and servers that are configured but not authorized — and every codebase the work builds against or imitates beyond this repository, asks what each is for, and writes the shared `.myco/team/knowledge.md` that every team's agents read. If the file already exists because the other team's setup wrote it, the skill confirms and fills gaps rather than asking again. When it finishes, carry on here.
 
 ## 4. Write the profile
 
-Copy `$MYCO_ROOT/engineering-team/templates/team/project.md` to `.claude/team/project.md` and fill it in. Rules:
+Copy `$MYCO_ROOT/engineering-team/templates/team/project.md` to `.myco/team/project.md` and fill it in. Rules:
 
 - **Every placeholder gets replaced or removed.** A profile shipped with `<command>` still in it is worse than no profile — an agent will read it as literal.
 - **Commands must be the real, runnable ones.** Verify each by running it if it's safe and fast (`lint`, `typecheck`, `--version`); don't run a full suite or anything destructive just to check. Say in your summary which ones you actually verified and which you took on trust.
@@ -82,16 +82,16 @@ Copy `$MYCO_ROOT/engineering-team/templates/team/project.md` to `.claude/team/pr
 ## 5. Scaffold the directories
 
 ```sh
-mkdir -p .claude/qa
-cp -r "$MYCO_ROOT/engineering-team/templates/qa/." .claude/qa/
+mkdir -p .myco/qa
+cp -r "$MYCO_ROOT/engineering-team/templates/qa/." .myco/qa/
 ```
 
-Don't overwrite an existing `.claude/qa/INDEX.md` or any accumulated plans or scripts — those are the project's own assets. (`agent-coach`'s reports directory is created by `team-ops` on first use; nothing to scaffold here.) On a refresh, add only what's missing.
+Don't overwrite an existing `.myco/qa/INDEX.md` or any accumulated plans or scripts — those are the project's own assets. (`agent-coach`'s reports directory is created by `team-ops` on first use; nothing to scaffold here.) On a refresh, add only what's missing.
 
 Then make sure the project's `.gitignore` keeps the heavy and machine-local things out while keeping the assets in:
 
-- `.claude/qa/runs/**` binary captures (the templated `runs/.gitignore` already handles this)
-- nothing else needs ignoring — the event stream lives outside the repo, under `~/.claude/ops/<stream>/`
+- `.myco/qa/runs/**` binary captures (the templated `runs/.gitignore` already handles this)
+- nothing else needs ignoring — the event stream lives outside the repo, under `~/.local/share/myco/ops/<stream>/`
 
 ## 6. Browser automation, only if it applies
 
@@ -108,7 +108,7 @@ If and only if the project has a web surface, add a Playwright MCP server to the
         "--headless",
         "--ignore-https-errors",
         "--viewport-size", "1280x800",
-        "--output-dir", ".claude/qa/runs/_artifacts"
+        "--output-dir", ".myco/qa/runs/_artifacts"
       ],
       "codemode": false
     }
@@ -134,13 +134,13 @@ gate engineering-team/ic-generalist "git merge origin/main"
 
 Run the merge-gate check and **say the result out loud to the user** — it's the one place where a typo in the profile silently changes how much autonomy the team has.
 
-Then confirm telemetry resolves to the stream you just configured: invoke the `log-friction` skill once with kind `tooling` and the note "init-team smoke test", and check the entry landed in `~/.claude/ops/<stream>/friction.jsonl`. If it landed in a directory named after the working directory instead, `stream:` in the profile isn't being read — check the frontmatter.
+Then confirm telemetry resolves to the stream you just configured: invoke the `log-friction` skill once with kind `tooling` and the note "init-team smoke test", and check the entry landed in `~/.local/share/myco/ops/<stream>/friction.jsonl`. If it landed in a directory named after the working directory instead, `stream:` in the profile isn't being read — check the frontmatter.
 
 Then tell the user, briefly:
 
 1. **What you detected and what you asked** — so they can spot a wrong inference.
 2. **Which commands you verified by running** vs. took on trust.
-3. **What to commit**: `.claude/team/project.md`, `.claude/team/knowledge.md`, the `.claude/qa/` scaffold, and `opencode.json` if you touched it. Run `git status --porcelain` on those paths before you finish and say plainly which are still uncommitted: every IC and QA run works in a worktree made from git, so anything uncommitted is invisible to them, and the team should not be given a ticket until these are committed.
+3. **What to commit**: `.myco/team/project.md`, `.myco/team/knowledge.md`, the `.myco/qa/` scaffold, and `opencode.json` if you touched it. Run `git status --porcelain` on those paths before you finish and say plainly which are still uncommitted: every IC and QA run works in a worktree made from git, so anything uncommitted is invisible to them, and the team should not be given a ticket until these are committed.
 4. **The next step** — one concrete action, not a menu (see below). Mention that `agent-coach` is for later: after a week or a batch of tickets, since it needs traffic before its three-occurrence threshold means anything.
 5. **The merge policy in plain words** — "agents will/won't merge without you, and here's how you'll be told" — plus the verified gate result.
 6. **Anything you deliberately left blank** and what would fill it in.

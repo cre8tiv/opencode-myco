@@ -2,9 +2,9 @@ set -e
 git init -q -b main .
 git config user.email eval@example.com
 git config user.name eval
-mkdir -p .claude/team docs/design/order-export
+mkdir -p .myco/team docs/design/order-export
 
-cat > .claude/team/design.md <<'EOT'
+cat > .myco/team/design.md <<'EOT'
 ---
 stream: eval-shop
 packages_dir: docs/design
