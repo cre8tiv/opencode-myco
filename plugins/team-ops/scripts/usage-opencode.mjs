@@ -85,10 +85,11 @@ function residualOf(session) {
 /**
  * The usage records for a lead session and the sessions of the agents it dispatched, in the shape
  * usage-lib reads: per agent, unit of work and model.
- * @param {{lead: {id: string, info: any, messages: any[]}, children?: Map<string, {info: any, messages: any[]}>, snap?: string}} p
+ * @param {{lead: {id: string, info: any, messages: any[]}, children?: Map<string, {info: any, messages: any[]}>, dispatches?: {sessionID: string, description?: string, at: any}[], snap?: string}} p
+ * dispatches: the sessions the lead dispatched into; by default those its own calls name.
  * @returns {object[]}
  */
-export function usageRecords({ lead, children = new Map(), snap = new Date().toISOString() }) {
+export function usageRecords({ lead, children = new Map(), dispatches = dispatchesOf(lead.messages), snap = new Date().toISOString() }) {
   const isLead = isTeam(lead.info?.agent);
   const tags = workTagsOf(lead.messages);
   /** @type {Map<string, any>} */
@@ -117,7 +118,7 @@ export function usageRecords({ lead, children = new Map(), snap = new Date().toI
     }
   }
 
-  for (const d of dispatchesOf(lead.messages)) {
+  for (const d of dispatches) {
     const child = children.get(d.sessionID);
     if (!child) continue;
     const parentWork = tagAt(tags, iso(d.at));
@@ -233,7 +234,14 @@ export function refreshFromOpenCode({ dir, cwd, exec = execOpencode, now = Date.
     try {
       const messages = listOf(get(exec, cwd, `/api/session/${s.id}/context`));
       const children = new Map();
-      for (const d of dispatchesOf(messages)) {
+      // A delegate call that was interrupted has no result to name its session, but the session names its lead.
+      const dispatches = dispatchesOf(messages);
+      const named = new Set(dispatches.map((d) => d.sessionID));
+      for (const c of sessions.values()) {
+        if (named.has(c.id) || (c.metadata?.mycoParent || c.parentID) !== s.id) continue;
+        dispatches.push({ sessionID: c.id, description: c.title, at: c.time?.created ?? 0 });
+      }
+      for (const d of dispatches) {
         // One dispatched session OpenCode no longer has must not lose the rest of the lead's usage.
         try {
           const info = get(exec, cwd, `/api/session/${d.sessionID}`);
@@ -242,7 +250,7 @@ export function refreshFromOpenCode({ dir, cwd, exec = execOpencode, now = Date.
           unreadableChildren++;
         }
       }
-      const records = usageRecords({ lead: { id: s.id, info: s, messages }, children, snap });
+      const records = usageRecords({ lead: { id: s.id, info: s, messages }, children, dispatches, snap });
       appendUsage(dir, records);
       if (records.length) updated.push(s.id);
     } catch {
