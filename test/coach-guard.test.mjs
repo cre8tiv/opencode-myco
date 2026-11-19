@@ -77,6 +77,13 @@ describe('shell commands: writes outside the allowed places', () => {
       ['shell', 'command', 'cat notes >> agents/tech-lead.md'],
       ['shell', 'command', 'echo hi 2> src/errors.log'],
       ['shell', 'command', String.raw`"x" > .myco\team\design.md`],
+      // A heredoc's body is skipped, but not what comes after it, nor a redirect on its own line.
+      ['shell', 'command', "cat <<'E'\nx\nE\necho y > src/a.js"],
+      ['shell', 'command', "cat <<'E' > src/a.js\nbody\nE"],
+      // An unquoted delimiter's body is expanded by the shell, so it is still read as commands.
+      ['shell', 'command', "cat <<E\n> src/a.js\nE"],
+      // An escaped quote does not hide a real redirect after the string.
+      ['shell', 'command', String.raw`echo "say \"hi\"" > .myco/team/project.md`],
       // File-modifying commands.
       ['shell', 'command', 'cp draft.md .myco/team/project.md'],
       ['shell', 'command', 'mv report.md plugins/x/report.md'],
@@ -130,7 +137,7 @@ describe('shell commands: what the coach legitimately does', () => {
       ['shell', 'command', 'grep -rn "friction" ~/.local/share/myco/ops | head -20'],
       ['shell', 'command', 'git log --oneline --since=2026-09-01 -- .myco/'],
       ['shell', 'command', 'wc -l ~/.local/share/myco/ops/acme/events.jsonl'],
-      ['shell', 'command', 'Get-Content $HOME/.myco/ops/acme/friction.jsonl | Select-Object -First 20'],
+      ['shell', 'command', 'Get-Content $HOME/.local/share/myco/ops/acme/friction.jsonl | Select-Object -First 20'],
       ['shell', 'command', 'Get-ChildItem .myco/team 2>$null'],
       // The cost script, which writes nothing in the project.
       ['shell', 'command', 'node "$CLAUDE_PLUGIN_ROOT/scripts/cost.mjs" --json --since 2026-10-01'],
@@ -147,6 +154,14 @@ describe('shell commands: what the coach legitimately does', () => {
       // An arrow inside a quoted string is not a redirect.
       ['shell', 'command', 'echo "a -> b > c"'],
       ['shell', 'command', "grep 'x>y' notes.md"],
+      ['shell', 'command', 'Select-String "a`">b" events.jsonl'],
+      // ...nor is one in a heredoc body with a quoted delimiter: the coach pipes analysis scripts to python this way
+      // (seen: a date comparison, `ts>=2026-11-12]`, read as a write to "=2026-11-12]").
+      ['shell', 'command', "python3 - <<'PY'\nrows=[r for r in rows if r['ts']>=2026-11-12]\nprint(len(rows))\nPY"],
+      ['shell', 'command', 'python3 - <<"PY"\nprint(1 > 0)\nPY\ncat .myco/team/project.md'],
+      ['shell', 'command', "python3 - <<-'PY'\n\tprint(1 > 0)\n\tPY"],
+      ['shell', 'command', "python3 - <<'PY'\r\nprint(1 > 0)\r\nPY\r\n"],
+      ['shell', 'command', "cat <<'E' > .myco/ops/reports/x.md\nbody > not a redirect\nE"],
     ],
     0,
   );

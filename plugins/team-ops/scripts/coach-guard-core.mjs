@@ -87,6 +87,23 @@ export const allowed = (p) => ALLOWED.some((re) => re.test(normalize(p)));
 const pathLike = (t) => /[\\/]/.test(t) || /\.[A-Za-z0-9]+$/.test(t) || /^[~$]/.test(t);
 
 /**
+ * Where the quote opened at i closes. A double-quoted string does not end at \" (Bash) or `" (PowerShell): `jq "select(.t>=\"x\")"`
+ * would otherwise leave its quotes early and read the `>` as a redirect. If no later quote closes it, the first one does: a
+ * Windows path ending in a backslash, "C:\dir\", is a whole string.
+ * @param {string} cmd @param {number} i @returns {number} the index of the closing quote, or -1
+ */
+function closingQuote(cmd, i) {
+  const q = cmd[i];
+  if (q === '"') {
+    for (let k = i + 1; k < cmd.length; k++) {
+      if (cmd[k] === '\\' || cmd[k] === '`') k++;
+      else if (cmd[k] === q) return k;
+    }
+  }
+  return cmd.indexOf(q, i + 1);
+}
+
+/**
  * Splits a command line into words, command separators and redirects, honoring quotes.
  * The same rules serve Bash and PowerShell: both quote with ' and ", chain with ; && ||
  * and |, and redirect with > and >>.
@@ -104,10 +121,23 @@ function tokenize(cmd) {
     quoted = false;
     has = false;
   };
+  // A heredoc whose delimiter is quoted (<<'EOF') has a body the shell does not expand: data, such as the
+  // script a coach pipes to python, and its `>` is not a redirect. The body starts on the next line.
+  /** @type {{tag: string, strip: boolean} | null} */
+  let heredoc = null;
   for (let i = 0; i < cmd.length; i++) {
     const c = cmd[i];
-    if (c === "'" || c === '"') {
-      const end = cmd.indexOf(c, i + 1);
+    if (c === '<' && cmd[i + 1] === '<' && cmd[i + 2] !== '<') {
+      flush();
+      let j = i + 2;
+      const strip = cmd[j] === '-';
+      if (strip) j++;
+      while (cmd[j] === ' ' || cmd[j] === '\t') j++;
+      const m = cmd.slice(j).match(/^(?:'([^']*)'|"([^"]*)"|\\([^\s;|&<>()]+))/);
+      if (m) heredoc = { tag: m[1] ?? m[2] ?? m[3], strip };
+      i = m ? j + m[0].length - 1 : i + 1;
+    } else if (c === "'" || c === '"') {
+      const end = closingQuote(cmd, i);
       cur += cmd.slice(i + 1, end < 0 ? cmd.length : end);
       quoted = true;
       has = true;
@@ -115,6 +145,22 @@ function tokenize(cmd) {
     } else if (c === '\n' || c === '\r' || c === ';') {
       flush();
       toks.push({ sep: true });
+      if (c === '\r' && cmd[i + 1] === '\n') i++;
+      if (heredoc && c !== ';') {
+        // Skip to the line that is the delimiter; with no such line the body runs to the end.
+        const lines = cmd.slice(i + 1).split(/\r?\n/);
+        let used = 0;
+        let found = false;
+        for (const line of lines) {
+          used += line.length + 1;
+          if ((heredoc.strip ? line.replace(/^\t+/, '') : line) === heredoc.tag) {
+            found = true;
+            break;
+          }
+        }
+        i = found ? Math.min(cmd.length, i + used) : cmd.length;
+        heredoc = null;
+      }
     } else if (c === '|' || (c === '&' && cmd[i + 1] === '&')) {
       flush();
       toks.push({ sep: true });
