@@ -1,7 +1,7 @@
 // The decision behind agent-coach's propose-only mandate, free of any host: given the
 // agent and the tool call it is about to make, which write (if any) is not allowed.
 //
-// Allowlist: the coach may write into .claude/ops/reports/ and scratch locations,
+// Allowlist: the coach may write into .myco/ops/reports/ and scratch locations,
 // and nothing else. It reads everything — agent definitions, transcripts, git
 // history, team profiles — and argues for changes in a report a human applies.
 //
@@ -16,7 +16,7 @@
 import { posix } from 'node:path';
 
 
-const ALLOWED = [/(^|\/)\.claude\/ops\/reports(\/|$)/i, /(^|\/)(tmp|temp)(\/|$)/i, /\/scratchpad(\/|$)/i];
+const ALLOWED = [/(^|\/).myco\/ops\/reports(\/|$)/i, /(^|\/)(tmp|temp)(\/|$)/i, /\/scratchpad(\/|$)/i];
 
 /** Places a redirect may point at without writing a file. */
 const SINKS = new Set(['/dev/null', '$null', 'nul']);
@@ -268,6 +268,6 @@ export function coachViolation({ agent, tool, input }) {
 /** @param {string} offending @returns {string} what the agent is told when its write is blocked */
 export const coachMessage = (offending) =>
   `Blocked: agent-coach is propose-only, and "${offending}" is not a place you may write. ` +
-  'The only place you may write is .claude/ops/reports/ (or a scratch directory). ' +
+  'The only place you may write is .myco/ops/reports/ (or a scratch directory). ' +
   'Put the recommendation in your report as a fenced diff and let a human apply it — ' +
   'agent definitions, team profiles and your own instrumentation are not yours to edit.';

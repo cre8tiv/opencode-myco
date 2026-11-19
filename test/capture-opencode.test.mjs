@@ -36,8 +36,8 @@ async function capture(t, { root, withGuards = false, noSessionHook = false, inf
   });
   const target = join(sb.root, 'oc');
   install({ target });
-  mkdirSync(join(sb.project, '.claude', 'team'), { recursive: true });
-  writeFileSync(join(sb.project, '.claude', 'team', 'project.md'), '---\nstream: alpha-stream\n---\n');
+  mkdirSync(join(sb.project, '.myco', 'team'), { recursive: true });
+  writeFileSync(join(sb.project, '.myco', 'team', 'project.md'), '---\nstream: alpha-stream\n---\n');
 
   /** @type {Record<string, Function>} */
   const tool = {};
@@ -75,7 +75,7 @@ async function capture(t, { root, withGuards = false, noSessionHook = false, inf
   const cap = await registerCapture(ctx, installRoot, work);
   if (withGuards) await registerGuards(ctx, installRoot, { onBlock: cap.recordBlock });
 
-  const file = () => join(sb.home, '.claude', 'ops', 'alpha-stream', 'events.jsonl');
+  const file = () => join(sb.home, '.local', 'share', 'myco', 'ops', 'alpha-stream', 'events.jsonl');
   /** Records are written without being waited for, so wait for the count a test expects. */
   const events = async (n = 1) => {
     for (let i = 0; i < 100; i++) {
@@ -506,7 +506,7 @@ describe('telemetry never breaks a run', () => {
 
   test('a stream that cannot be written does not fail the call', async (t) => {
     const c = await capture(t);
-    writeFileSync(join(c.sb.home, '.claude'), 'not a directory');
+    writeFileSync(join(c.sb.home, '.local'), 'not a directory');
     assert.doesNotThrow(() => c.after({ ...DENIED }));
     await c.quiet();
   });

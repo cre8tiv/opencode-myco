@@ -61,8 +61,8 @@ describe('values', () => {
 
   test('only the frontmatter is read, never the prose body', (t) => {
     const sb = sandbox(t);
-    const p = join(sb.project, '.claude', 'team', 'project.md');
-    mkdirSync(join(sb.project, '.claude', 'team'), { recursive: true });
+    const p = join(sb.project, '.myco', 'team', 'project.md');
+    mkdirSync(join(sb.project, '.myco', 'team'), { recursive: true });
     writeFileSync(p, '---\nstream: alpha\n---\n\n# Profile\n\nmerge_policy: autonomous\n');
     assert.equal(key(sb.project, 'stream'), 'alpha');
     assert.equal(key(sb.project, 'merge_policy'), undefined);
@@ -70,8 +70,8 @@ describe('values', () => {
 
   test('CRLF line endings, as written on Windows', (t) => {
     const sb = sandbox(t);
-    const p = join(sb.project, '.claude', 'team', 'project.md');
-    mkdirSync(join(sb.project, '.claude', 'team'), { recursive: true });
+    const p = join(sb.project, '.myco', 'team', 'project.md');
+    mkdirSync(join(sb.project, '.myco', 'team'), { recursive: true });
     writeFileSync(p, '---\r\nstream: alpha\r\nmerge_policy: autonomous\r\n---\r\n\r\n# Profile\r\n');
     assert.equal(key(sb.project, 'stream'), 'alpha');
     assert.equal(key(sb.project, 'merge_policy'), 'autonomous');
@@ -80,8 +80,8 @@ describe('values', () => {
   test('a file with no frontmatter, or none at all, reads as empty', (t) => {
     const sb = sandbox(t);
     assert.equal(key(sb.project, 'stream', 'x'), 'x');
-    mkdirSync(join(sb.project, '.claude', 'team'), { recursive: true });
-    writeFileSync(join(sb.project, '.claude', 'team', 'project.md'), '# Just prose\n\nstream: alpha\n');
+    mkdirSync(join(sb.project, '.myco', 'team'), { recursive: true });
+    writeFileSync(join(sb.project, '.myco', 'team', 'project.md'), '# Just prose\n\nstream: alpha\n');
     assert.equal(key(sb.project, 'stream', 'x'), 'x');
   });
 });
@@ -90,7 +90,7 @@ describe('finding the profile', () => {
   test('walks up from a subdirectory, as an IC in a git worktree does', (t) => {
     const sb = sandbox(t);
     writeProfile(sb.project, { stream: 'alpha' });
-    const deep = join(sb.project, '.claude', 'worktrees', 'agent-9', 'packages', 'api');
+    const deep = join(sb.project, 'worktrees', 'agent-9', 'packages', 'api');
     mkdirSync(deep, { recursive: true });
     assert.equal(key(deep, 'stream'), 'alpha');
   });
@@ -141,8 +141,8 @@ describe('telemetry stream name', () => {
   test('every worktree of a project resolves the same stream when the profile is committed', (t) => {
     const sb = sandbox(t);
     writeProfile(sb.project, { stream: 'checkout-service' });
-    const a = join(sb.project, '.claude', 'worktrees', 'a');
-    const b = join(sb.project, '.claude', 'worktrees', 'b');
+    const a = join(sb.project, 'worktrees', 'a');
+    const b = join(sb.project, 'worktrees', 'b');
     mkdirSync(a, { recursive: true });
     mkdirSync(b, { recursive: true });
     assert.equal(resolveStreamName(a), resolveStreamName(b));

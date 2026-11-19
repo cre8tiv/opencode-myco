@@ -25,8 +25,8 @@ async function guarded(t, { profile } = {}) {
   const target = join(sb.root, 'oc');
   install({ target });
   const project = join(sb.root, 'proj');
-  mkdirSync(join(project, '.claude', 'team'), { recursive: true });
-  if (profile) writeFileSync(join(project, '.claude', 'team', 'project.md'), `---\n${profile}\n---\n`);
+  mkdirSync(join(project, '.myco', 'team'), { recursive: true });
+  if (profile) writeFileSync(join(project, '.myco', 'team', 'project.md'), `---\n${profile}\n---\n`);
   const { ctx, hooks } = fakeCtx(project);
   const loaded = await registerGuards(ctx, join(target, 'myco'));
   /** @returns {string | null} the message the call was blocked with, or null when it ran */
@@ -63,8 +63,8 @@ describe('the agent-coach guard', () => {
     for (const call of [
       { tool: 'write', input: { path: 'a.txt', content: 'x' } },
       { tool: 'write', input: { path: '/home/dev/proj/b.txt', content: 'w' } },
-      { tool: 'edit', input: { path: '.claude/team/project.md', oldString: 'a', newString: 'b' } },
-      { tool: 'write', input: { path: '.claude/ops/reports/../../team/project.md', content: 'x' } },
+      { tool: 'edit', input: { path: '.myco/team/project.md', oldString: 'a', newString: 'b' } },
+      { tool: 'write', input: { path: '.myco/ops/reports/../../team/project.md', content: 'x' } },
     ]) {
       assert.match(ask({ agent: COACH, ...call }) ?? '', /agent-coach is propose-only/, JSON.stringify(call.input));
     }
@@ -73,9 +73,9 @@ describe('the agent-coach guard', () => {
   test('lets the coach write its report, by a relative or an absolute path, and edit it', async (t) => {
     const { ask } = await guarded(t);
     for (const call of [
-      { tool: 'write', input: { path: '.claude/ops/reports/2026-11-03-agent-health.md', content: 'y' } },
-      { tool: 'write', input: { path: '/home/dev/proj/.claude/ops/reports/abs.md', content: 'z' } },
-      { tool: 'edit', input: { path: '.claude/ops/reports/keep.md', oldString: 'r', newString: 'edited' } },
+      { tool: 'write', input: { path: '.myco/ops/reports/2026-11-03-agent-health.md', content: 'y' } },
+      { tool: 'write', input: { path: '/home/dev/proj/.myco/ops/reports/abs.md', content: 'z' } },
+      { tool: 'edit', input: { path: '.myco/ops/reports/keep.md', oldString: 'r', newString: 'edited' } },
       { tool: 'read', input: { path: 'a.txt' } },
     ]) {
       assert.equal(ask({ agent: COACH, ...call }), null, JSON.stringify(call.input));
@@ -87,13 +87,13 @@ describe('the agent-coach guard', () => {
     // `echo x > c.txt` was allowed and the file was created.
     const { ask } = await guarded(t);
     assert.match(ask({ agent: COACH, tool: 'shell', input: { command: 'echo shellwrite > c.txt' } }) ?? '', /propose-only/);
-    assert.match(ask({ agent: COACH, tool: 'shell', input: { command: 'rm -rf .claude/team' } }) ?? '', /propose-only/);
+    assert.match(ask({ agent: COACH, tool: 'shell', input: { command: 'rm -rf .myco/team' } }) ?? '', /propose-only/);
     assert.match(ask({ agent: COACH, tool: 'shell', input: { command: 'bash -c "echo x > c.txt"' } }) ?? '', /propose-only/);
   });
 
   test('lets the coach read and run ordinary commands', async (t) => {
     const { ask } = await guarded(t);
-    for (const command of ['echo ROOT=$MYCO_ROOT', 'git log --oneline -5', 'cat a.txt | wc -l', 'echo report > .claude/ops/reports/r.md']) {
+    for (const command of ['echo ROOT=$MYCO_ROOT', 'git log --oneline -5', 'cat a.txt | wc -l', 'echo report > .myco/ops/reports/r.md']) {
       assert.equal(ask({ agent: COACH, tool: 'shell', input: { command } }), null, command);
     }
   });
@@ -163,7 +163,7 @@ describe('commands another plugin has rewritten', () => {
 
   test('a write behind a wrapper is still stopped for the coach', async (t) => {
     const { ask } = await guarded(t);
-    for (const command of [WRAP + 'rm -rf .claude/team', 'rtk rm -rf .claude/team', WRAP + 'echo x > c.txt']) {
+    for (const command of [WRAP + 'rm -rf .myco/team', 'rtk rm -rf .myco/team', WRAP + 'echo x > c.txt']) {
       assert.match(ask({ agent: COACH, tool: 'shell', input: { command } }) ?? '', /propose-only/, command);
     }
     assert.equal(ask({ agent: COACH, tool: 'shell', input: { command: WRAP + 'git log --oneline -5' } }), null);
@@ -187,8 +187,8 @@ describe('where the project profile is looked for', () => {
     const sb = sandbox(t);
     install({ target: join(sb.root, 'oc') });
     const elsewhere = join(sb.root, 'elsewhere');
-    mkdirSync(join(elsewhere, '.claude', 'team'), { recursive: true });
-    writeFileSync(join(elsewhere, '.claude', 'team', 'project.md'), '---\nmerge_policy: autonomous\n---\n');
+    mkdirSync(join(elsewhere, '.myco', 'team'), { recursive: true });
+    writeFileSync(join(elsewhere, '.myco', 'team', 'project.md'), '---\nmerge_policy: autonomous\n---\n');
     const { ctx, hooks } = fakeCtx(undefined);
     delete ctx.location;
     await registerGuards(ctx, join(sb.root, 'oc', 'myco'));
@@ -204,8 +204,8 @@ describe('where the project profile is looked for', () => {
   test('the shell call\'s own workdir does not choose the policy: the agent controls it', async (t) => {
     const { ask, project } = await guarded(t);
     const other = join(project, '..', 'other');
-    mkdirSync(join(other, '.claude', 'team'), { recursive: true });
-    writeFileSync(join(other, '.claude', 'team', 'project.md'), '---\nmerge_policy: autonomous\n---\n');
+    mkdirSync(join(other, '.myco', 'team'), { recursive: true });
+    writeFileSync(join(other, '.myco', 'team', 'project.md'), '---\nmerge_policy: autonomous\n---\n');
     assert.match(ask({ agent: LEAD, tool: 'shell', input: { command: 'git push origin main', workdir: other } }) ?? '', /merge_policy is "human-approval"/);
   });
 });

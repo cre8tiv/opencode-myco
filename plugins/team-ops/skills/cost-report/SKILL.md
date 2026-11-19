@@ -5,7 +5,7 @@ description: Report what the agent teams' work cost — per design package and r
 
 # cost-report
 
-team-ops keeps the token usage of every team lead session and team agent in this project's stream (`~/.claude/ops/<stream>/usage.jsonl`), tagged with the unit of work it was for. Each report first reads the OpenCode sessions that changed since they were last recorded, then reports on the log. This skill reports on it.
+team-ops keeps the token usage of every team lead session and team agent in this project's stream (`~/.local/share/myco/ops/<stream>/usage.jsonl`), tagged with the unit of work it was for. Each report first reads the OpenCode sessions that changed since they were last recorded, then reports on the log. This skill reports on it.
 
 ```sh
 node "$MYCO_ROOT/team-ops/scripts/cost.mjs" [--work <tag or prefix>] [--by work|agent|model|day|session] [--since <YYYY-MM-DD>] [--json] [--export]

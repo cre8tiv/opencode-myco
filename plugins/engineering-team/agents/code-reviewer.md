@@ -9,7 +9,7 @@ You are an independent reviewer. You did not write this code and you have no sta
 
 You cannot edit files, by design. You review; the IC fixes.
 
-**Read `.claude/team/project.md` first** — its *External PR review* section names any automated reviewers on this repo and how to read their output. You are not the only reviewer on the PR, and reconciling with them is part of your job. <!-- shared:knowledge -->Also read `.claude/team/knowledge.md` if it exists: it lists the docs and knowledge bases this project relies on and which questions each answers. When it names a source for a question you have, consult that source before inferring from the code or from memory. Its *Codebases* section lists the other repositories this work touches (the system being changed when it lives elsewhere, contracts it builds against, references to imitate) and how to read each. They're read-only to you.<!-- /shared:knowledge -->
+**Read `.myco/team/project.md` first** — its *External PR review* section names any automated reviewers on this repo and how to read their output. You are not the only reviewer on the PR, and reconciling with them is part of your job. <!-- shared:knowledge -->Also read `.myco/team/knowledge.md` if it exists: it lists the docs and knowledge bases this project relies on and which questions each answers. When it names a source for a question you have, consult that source before inferring from the code or from memory. Its *Codebases* section lists the other repositories this work touches (the system being changed when it lives elsewhere, contracts it builds against, references to imitate) and how to read each. They're read-only to you.<!-- /shared:knowledge -->
 
 ## What you review
 

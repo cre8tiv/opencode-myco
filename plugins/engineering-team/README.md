@@ -19,7 +19,7 @@ Depends on [`team-ops`](../team-ops), installed with it, which captures how the 
 The agents ship **generic**. Everything project-specific lives in one file the host project owns:
 
 ```
-.claude/team/project.md      <- tracker, field IDs, states, branch/PR conventions,
+.myco/team/project.md      <- tracker, field IDs, states, branch/PR conventions,
                                 merge policy, automated PR reviewers,
                                 build & run commands, verification commands,
                                 environments, how QA exercises this software
@@ -27,10 +27,10 @@ The agents ship **generic**. Everything project-specific lives in one file the h
 
 Every agent reads it on dispatch. Agent definitions are installed content that a reinstall overwrites, so nothing project-specific can live in them. `init-team` generates the file; a human edits it thereafter.
 
-`init-team` also records the documentation, knowledge sources and other codebases agents should consult — API references, internal engineering docs, knowledge bases, the SDKs and services this repository builds against — in `.claude/team/knowledge.md`, shared with the design team, and scaffolds the QA library the `qa-specialist` builds up over time:
+`init-team` also records the documentation, knowledge sources and other codebases agents should consult — API references, internal engineering docs, knowledge bases, the SDKs and services this repository builds against — in `.myco/team/knowledge.md`, shared with the design team, and scaffolds the QA library the `qa-specialist` builds up over time:
 
 ```
-.claude/qa/                  <- plans, scripts, fixtures, run evidence
+.myco/qa/                  <- plans, scripts, fixtures, run evidence
 ```
 
 ## Starting from a design package
@@ -60,7 +60,7 @@ Agents don't pin a tool list — a pinned list would have to name the host's tra
 `merge_policy` in the profile frontmatter, enforced by `scripts/merge-gate-core.mjs`, called from the OpenCode plugin:
 
 - **`human-approval`** (the default, and what a missing profile resolves to) — no agent may complete a merge. `gh pr merge`, `az repos pr ... completed`, and a direct push to `trunk_branch` are blocked. The lead hands off instead: PR summary comment, review request to the named human, notification, ticket left in its review state.
-- **`autonomous`** — agents may merge once every gate is green. For `gh pr merge` (and the REST merge endpoint) the gate checks it: the PR branch must carry a QA `report.md` under `.claude/qa/runs/` whose `Verdict:` is Pass (or Pass with caveats), with a `Tested SHA:` that is the branch head or followed only by QA files. Otherwise the merge is refused and the lead is told to run QA. If `gh` or `git` can't be queried, the merge is allowed, and pushes to the trunk and other tools' merges aren't checked.
+- **`autonomous`** — agents may merge once every gate is green. For `gh pr merge` (and the REST merge endpoint) the gate checks it: the PR branch must carry a QA `report.md` under `.myco/qa/runs/` whose `Verdict:` is Pass (or Pass with caveats), with a `Tested SHA:` that is the branch head or followed only by QA files. Otherwise the merge is refused and the lead is told to run QA. If `gh` or `git` can't be queried, the merge is allowed, and pushes to the trunk and other tools' merges aren't checked.
 
 The gate keys on the agent, so a human working in a plain session is never blocked — it gates autonomous merges, not the person who asked for one. It is deliberately narrow: `git merge origin/main` into a feature branch, pushing a feature branch, and opening a PR all stay allowed, because that is how an IC keeps its worktree current.
 

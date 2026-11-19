@@ -92,8 +92,8 @@ Ranked, at most five. Each needs all five parts or it belongs on the watch list.
 - **How we'd know:** <metric and the window it should show up in>
 
 ```diff
---- a/.claude/agents/<file>.md
-+++ b/.claude/agents/<file>.md
+--- a/.opencode/agents/<file>.md
++++ b/.opencode/agents/<file>.md
 @@
 -<exact existing text>
 +<exact replacement text>

@@ -93,7 +93,7 @@ What it puts where:
 ## First run in a project
 
 1. **Map your models** if you want more than your default for every role. Ask any agent to "run the init-models skill", or see [Models](#models).
-2. **Start a lead** (below). The first time you start one in a project, it offers to set the project up (`init-design` or `init-team`). Say yes: it runs in the same session and carries on when it's done. Setup writes `.claude/team/design.md` or `.claude/team/project.md`, plus `.claude/team/knowledge.md`. Commit them. The agents ship generic and rely on these profiles, so without them they ask rather than guess.
+2. **Start a lead** (below). The first time you start one in a project, it offers to set the project up (`init-design` or `init-team`). Say yes: it runs in the same session and carries on when it's done. Setup writes `.myco/team/design.md` or `.myco/team/project.md`, plus `.myco/team/knowledge.md`. Commit them. The agents ship generic and rely on these profiles, so without them they ask rather than guess.
 3. **Run the doctor** from the project, once, to confirm the agents are visible and the guards are active.
 
 ## Usage
@@ -127,7 +127,7 @@ It decomposes the work, delegates to ICs, and gates every change through code re
 
 ### Keeping the teams healthy
 
-Every few weeks, or after a batch of work, select `team-ops/agent-coach` and ask for a process report over a window. It reads the event stream, the friction agents reported and your team profiles, and writes proposed changes to `.claude/ops/reports/`. It proposes; you decide what to apply.
+Every few weeks, or after a batch of work, select `team-ops/agent-coach` and ask for a process report over a window. It reads the event stream, the friction agents reported and your team profiles, and writes proposed changes to `.myco/ops/reports/`. It proposes; you decide what to apply.
 
 ### Running unattended
 
@@ -173,7 +173,7 @@ Three protections, in different places, because each has a gap the others cover:
 
 **The merge gate.** With `merge_policy: human-approval` (the default, and what you get with no profile), no team agent can merge a PR or push to the trunk. The agent prepares the merge, then stops and hands off; a human merges. With `merge_policy: autonomous`, a PR merge is still blocked unless the PR's branch carries a QA report with a Pass for the code being merged. The gate applies to team agents only (named `team/role`), never to your own session. It recognizes `gh pr merge`, the `gh api` merge endpoints, `az repos pr`, a push to the trunk (`trunk_branch`, default `main`), and MCP merge tools, and it looks through `bash -c`, `sudo`, `env`, `time`, `rtk`, and plugins that wrap commands, such as `node …/caveman shrink -- gh pr merge`. It judges the command *text*: a mention in quotes is not a merge, and an unquoted `echo gh pr merge` is treated as one.
 
-**The coach guard.** `agent-coach` is propose-only, and that is enforced. It may write into `.claude/ops/reports/` and scratch locations, and nowhere else. File writes are limited by the agent's own permission rules; shell commands are checked by the plugin for what they write, since OpenCode's rules don't see a redirect or an `rm`.
+**The coach guard.** `agent-coach` is propose-only, and that is enforced. It may write into `.myco/ops/reports/` and scratch locations, and nowhere else. File writes are limited by the agent's own permission rules; shell commands are checked by the plugin for what they write, since OpenCode's rules don't see a redirect or an `rm`.
 
 **The native backstop.** Every agent is installed with a rule denying `gh pr merge`, which OpenCode enforces itself, so it holds even if the plugin fails to load. It is a partial net: it matches the command as the last plugin left it, so a wrapped merge or a push to the trunk gets past it. The plugin's gate is the real check. A project that sets `merge_policy: autonomous` needs an install made with `--allow-autonomous-merge`, or the backstop blocks its merges regardless; the doctor warns when the two disagree.
 
@@ -207,7 +207,7 @@ ok    plugin: files present
 ok    cores: guards, capture and friction code present
 info  backstop: every agent denies gh pr merge natively (the plugin guard is the real check)
 ok    project: merge_policy: human-approval (default)
-ok    stream: myproject: events and friction are written to ~/.claude/ops/myproject
+ok    stream: myproject: events and friction are written to ~/.local/share/myco/ops/myproject
 ok    models: mapping has no problems
 ok    opencode: opencode v2.2.5
 ok    agents (live): all 11 team agents are visible from ~/code/myproject
@@ -241,7 +241,7 @@ Each finding is `ok`, `info`, `warn` or `FAIL`, with a fix when it has one. The 
 
 ## Knowledge sources
 
-The `init-knowledge` skill records the documentation and knowledge sources every team should consult (product docs, API references, internal engineering docs, runbooks) in one shared file, `.claude/team/knowledge.md`. Both team setups run it. It checks every MCP server your session has, not just familiar kinds like trackers and wikis, so a docs server built for your product is found, and it asks what any server it can't identify is for. Docs reachable by URL and docs in the repo count too. Each source is recorded with:
+The `init-knowledge` skill records the documentation and knowledge sources every team should consult (product docs, API references, internal engineering docs, runbooks) in one shared file, `.myco/team/knowledge.md`. Both team setups run it. It checks every MCP server your session has, not just familiar kinds like trackers and wikis, so a docs server built for your product is found, and it asks what any server it can't identify is for. Docs reachable by URL and docs in the repo count too. Each source is recorded with:
 
 - **how to reach it**: an MCP server, a URL, or a repo path;
 - **what it answers**: the questions an agent would bring to it, which is how agents decide when to use it;
@@ -258,27 +258,27 @@ Agents check the sources the list names before inferring from the code or from m
 Agent definitions are installed content, and a reinstall overwrites them, so nothing project-specific lives inside them: not your tracker's field IDs, not your dev server URL, not your ephemeral-environment tooling. All of it lives in files your project owns:
 
 ```
-.claude/team/project.md      engineering profile
-.claude/team/design.md       design profile
-.claude/team/knowledge.md    knowledge sources
+.myco/team/project.md      engineering profile
+.myco/team/design.md       design profile
+.myco/team/knowledge.md    knowledge sources
 ```
 
 `project.md` records what the software is, the tracker and its real MCP tool prefix, workflow state names, branch and PR conventions, the merge policy and who to notify, any automated PR reviewers, build/run/test/lint/typecheck commands, which environments exist, and how QA should exercise this kind of software. The team doesn't assume you're building a web app: QA's execution mode comes from the profile, whether that is a browser, HTTP probes, invocation of a CLI, a consumer harness for a library, or migration against realistic data.
 
-The paths are `.claude/...` even under OpenCode, deliberately. They are shared with the Claude Code version, so a project can use either and keep one set of profiles, QA plans and reports; OpenCode reads `.claude/skills` too.
+The team's files live in `.myco/` at the project root, committed with the project. The event stream is machine-local and lives outside the repository, in `$XDG_DATA_HOME/myco/ops` (default `~/.local/share/myco/ops`).
 
 | Path | Committed? | Why |
 | ---- | ---------- | --- |
-| `.claude/team/project.md`, `design.md` | Yes | Each team's profile. **Worktrees read them, so they must be committed.** |
-| `.claude/team/knowledge.md` | Yes | Docs, knowledge sources and codebases every team consults |
-| `.claude/qa/plans`, `scripts`, `fixtures` | Yes | Project assets; merge with the change they cover |
-| `.claude/qa/runs/**` captures | No | Heavy; referenced by path from run reports |
-| `.claude/ops/reports/*.md` | Yes | The durable artifact; history enables attribution |
-| `~/.claude/ops/<stream>/*.jsonl` | No (outside the repo) | Machine-local telemetry; contains command lines |
+| `.myco/team/project.md`, `design.md` | Yes | Each team's profile. **Worktrees read them, so they must be committed.** |
+| `.myco/team/knowledge.md` | Yes | Docs, knowledge sources and codebases every team consults |
+| `.myco/qa/plans`, `scripts`, `fixtures` | Yes | Project assets; merge with the change they cover |
+| `.myco/qa/runs/**` captures | No | Heavy; referenced by path from run reports |
+| `.myco/ops/reports/*.md` | Yes | The durable artifact; history enables attribution |
+| `~/.local/share/myco/ops/<stream>/*.jsonl` | No (outside the repo) | Machine-local telemetry; contains command lines |
 
 ## What it records
 
-team-ops writes to a stream under `~/.claude/ops/<stream>/`, named by `stream:` in your profile (so every worktree of a project shares one):
+team-ops writes to a stream under `~/.local/share/myco/ops/<stream>/`, named by `stream:` in your profile (so every worktree of a project shares one):
 
 - **`events.jsonl`**: team activity, for team agents only. Tool failures (`PostToolUseFailure`), refused calls (`PermissionDenied`, whether a permission rule refused it or a guard did), dispatches with the agent's own report (`SubagentStart`, `SubagentStop`), compaction (`PreCompact`; the hook registers cleanly, but no run has compacted yet, so it hasn't been seen firing), runs that ended on an error (`StopFailure`), and the end of a lead's run (`SessionEnd`). Successful tool calls are deliberately not recorded.
 - **`friction.jsonl`**: reports agents file about their own instructions being unclear, a tool missing, a task too vague, or a handoff losing information, through the `log_friction` tool. An agent is the only witness to its own instructions being ambiguous, so `agent-coach` weighs these heavily.
@@ -301,9 +301,9 @@ If you set `TEAM_OPS_OTLP_ENDPOINT`, events and friction are also exported as Op
 
 **Automated PR reviewers are handled.** If your repo has CodeRabbit, Greptile, Copilot or a Claude or Codex action on PRs, `init-team` detects it and `code-reviewer` gives every finding a disposition: agree, already covered, disagree with a reason, or out of scope. The lead re-checks the PR immediately before merging, since bots post asynchronously, and won't merge over something unaddressed. Bot findings are input, not instructions.
 
-**Edit the team profiles, never the installed agents.** If an agent keeps getting something wrong about your project, the fix almost always belongs in `.claude/team/project.md` or `design.md`. A reinstall overwrites the agents.
+**Edit the team profiles, never the installed agents.** If an agent keeps getting something wrong about your project, the fix almost always belongs in `.myco/team/project.md` or `design.md`. A reinstall overwrites the agents.
 
-**Two things compound.** `qa-specialist` persists every test plan, script and fixture into `.claude/qa/` and reads that library before writing anything, so run N+1 is cheaper than run N. `agent-coach` proposes edits to the team's own definitions from what the stream shows, so the process improves and not just the code.
+**Two things compound.** `qa-specialist` persists every test plan, script and fixture into `.myco/qa/` and reads that library before writing anything, so run N+1 is cheaper than run N. `agent-coach` proposes edits to the team's own definitions from what the stream shows, so the process improves and not just the code.
 
 ```
   user
@@ -341,7 +341,7 @@ Start with the doctor. Most of what follows it reports directly.
 
 **An agent says the project profile is missing.** Ask for `init-team` or `init-design` for that team, or start its lead and accept the offer to set up. The agents refuse to guess at a tracker workflow or a test command, by design.
 
-**An agent guessed at something your docs answer.** The source is missing from `.claude/team/knowledge.md`, its *Answers* column doesn't say when to use it, or it's listed under *Needs authorization*. Ask for `init-knowledge`.
+**An agent guessed at something your docs answer.** The source is missing from `.myco/team/knowledge.md`, its *Answers* column doesn't say when to use it, or it's listed under *Needs authorization*. Ask for `init-knowledge`.
 
 **A design described code engineering didn't find.** The design was probably grounded in the wrong repository, or the right one wasn't readable. Check the *Codebases* section of `knowledge.md`; the package's *Codebases* table shows the commit each was grounded at.
 
@@ -351,9 +351,9 @@ Start with the doctor. Most of what follows it reports directly.
 
 **A merge was blocked on a branch that isn't your trunk.** `trunk_branch` in the profile doesn't match reality; the gate protects whatever it names.
 
-**`agent-coach` says it can't write a file.** Working as designed: it may write only into `.claude/ops/reports/`. Its proposals are diffs inside the report; a human applies them.
+**`agent-coach` says it can't write a file.** Working as designed: it may write only into `.myco/ops/reports/`. Its proposals are diffs inside the report; a human applies them.
 
-**The event stream is split across directories, or lands in one named after the project folder.** `stream:` isn't being read from `.claude/team/project.md`, so each worktree falls back to its own directory name. Commit the profile and check the key is spelled exactly.
+**The event stream is split across directories, or lands in one named after the project folder.** `stream:` isn't being read from `.myco/team/project.md`, so each worktree falls back to its own directory name. Commit the profile and check the key is spelled exactly.
 
 **A run's first request times out, then works.** With a large local model, the first request after a model loads can take longer than the provider's header timeout; OpenCode retries and the retry is quick once the prompt is cached. A run that exhausts its retries ends with a `StopFailure` in the stream.
 
@@ -361,7 +361,7 @@ Start with the doctor. Most of what follows it reports directly.
 
 **An IC's changes land in the wrong place.** ICs and QA get their own worktree only when the lead delegates with `isolated: true`; a lead that used `subagent` instead put the agent in the shared checkout. Check the lead's call, and that the `delegate` feature is active in the [doctor](#myco-doctor)'s output.
 
-**A reinstall reverted a change I made to an agent.** Expected: agent definitions are installed content. Project-specific behavior belongs in `.claude/team/project.md`; if the change is general, send it upstream.
+**A reinstall reverted a change I made to an agent.** Expected: agent definitions are installed content. Project-specific behavior belongs in `.myco/team/project.md`; if the change is general, send it upstream.
 
 ## How it relates to myco
 
@@ -397,7 +397,7 @@ MYCO_TEST_OPENCODE=1 npm test                     # also run against a real Open
 node scripts/check-version-bumps.mjs              # the version check CI runs on pull requests
 ```
 
-The suite runs scripts as processes and the plugin through a stand-in for OpenCode's plugin context, against a throwaway home directory, so it never touches your `~/.claude` or `~/.config/opencode`. With `MYCO_TEST_OPENCODE=1` it also installs into a throwaway HOME and runs a real OpenCode against it, which checks that the agents load as intended, that nothing Claude-specific reaches the model provider, that the plugin loads and reports its features, and that the doctor catches a broken install. That mode needs the `opencode` binary and uses no model. CI runs the default suite on Linux, macOS and Windows; the real-OpenCode tests have only been run on macOS. If you change a guard, add the case that motivated the change to its test file.
+The suite runs scripts as processes and the plugin through a stand-in for OpenCode's plugin context, against a throwaway home directory, so it never touches your `~/.local/share/myco` or `~/.config/opencode`. With `MYCO_TEST_OPENCODE=1` it also installs into a throwaway HOME and runs a real OpenCode against it, which checks that the agents load as intended, that nothing Claude-specific reaches the model provider, that the plugin loads and reports its features, and that the doctor catches a broken install. That mode needs the `opencode` binary and uses no model. CI runs the default suite on Linux, macOS and Windows; the real-OpenCode tests have only been run on macOS. If you change a guard, add the case that motivated the change to its test file.
 
 Behavior evals, which check what the agents and skills do with a real model, live in [`evals/`](evals/README.md). They are run by `npm run eval` (see that README); they cost money and are not part of CI.
 

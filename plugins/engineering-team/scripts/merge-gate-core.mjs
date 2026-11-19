@@ -173,7 +173,7 @@ const git = (cwd, ...args) => run('git', args, cwd);
 const gh = (cwd, args) => (process.env.MERGE_GATE_GH ? run(process.execPath, [process.env.MERGE_GATE_GH, ...args], cwd) : run('gh', args, cwd));
 
 // Why this PR may not merge yet, or null when its QA report is a Pass for the code being
-// merged. The report is the latest .claude/qa/runs/*/report.md on the PR's branch, with
+// merged. The report is the latest .myco/qa/runs/*/report.md on the PR's branch, with
 // "Verdict:" and "Tested SHA:" lines. Anything that stops the check from running at all
 // (no gh, offline, unknown branch) throws, and the caller lets the merge through: a
 // broken gate must never block legitimate work.
@@ -183,8 +183,8 @@ function qaCheck(cwd, pr) {
   try { git(cwd, 'fetch', '-q', 'origin', branch); } catch { /* use what is already fetched */ }
   const ref = `origin/${branch}`;
   git(cwd, 'rev-parse', '--verify', '-q', ref);
-  const reports = git(cwd, 'ls-tree', '-r', '--name-only', ref, '--', '.claude/qa/runs').split(/\r?\n/).filter((f) => /\/report\.md$/.test(f));
-  if (!reports.length) return `${branch} has no QA run report under .claude/qa/runs/`;
+  const reports = git(cwd, 'ls-tree', '-r', '--name-only', ref, '--', '.myco/qa/runs').split(/\r?\n/).filter((f) => /\/report\.md$/.test(f));
+  if (!reports.length) return `${branch} has no QA run report under .myco/qa/runs/`;
   const latest = reports.sort().pop();
   const report = git(cwd, 'show', `${ref}:${latest}`);
   const verdict = (report.match(/^\W*Verdict\W*:\W*([A-Za-z][^\r\n]*)/im) || [])[1]?.trim();
@@ -197,7 +197,7 @@ function qaCheck(cwd, pr) {
   } catch {
     return `${latest}'s tested SHA ${sha} is not in ${branch}'s history`;
   }
-  const code = changed.filter((f) => !f.startsWith('.claude/qa/'));
+  const code = changed.filter((f) => !f.startsWith('.myco/qa/'));
   if (code.length) return `${branch} changed after QA tested ${sha.slice(0, 7)} (${code.slice(0, 3).join(', ')}${code.length > 3 ? ', ...' : ''}); QA must re-run`;
   return null;
 }
@@ -242,6 +242,6 @@ export function mergeVerdict({ agent, tool, input, cwd }) {
         'commit it is on, with the review and QA verdicts, and report that it is ready for them to merge. ' +
         'Leave the ticket in its review/validated state.'
     : head + 'Finish the handoff instead — post the review and QA verdicts on the PR, request review from ' +
-        'the human named in .claude/team/project.md, send the notification recorded there, and report that ' +
+        'the human named in .myco/team/project.md, send the notification recorded there, and report that ' +
         'the PR is ready to merge. Leave the ticket in its review/validated state.';
 }

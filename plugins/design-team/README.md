@@ -18,7 +18,7 @@ Depends on [`team-ops`](../team-ops), installed with it, which captures how the 
 
 Just start the product lead (below). If the project has no design profile yet, it offers to run setup first, in the same session, and carries straight on afterwards. You can also ask any session to run the `init-design` skill at any time, to refresh the profile.
 
-Setup runs once per project. It detects where design docs already live in the repo, which systems this session can reach (tracker, Confluence, Notion, Linear, Figma). It asks only what it can't infer — where packages are published, who signs off, which design files to use — verifies each destination and source with a read-only call, and writes `.claude/team/design.md`. It also records the documentation and knowledge sources the team should ground in — product docs, API references, knowledge bases, including MCP servers that exist but aren't authorized yet — in `.claude/team/knowledge.md`, shared with the engineering team. The same file lists the codebases the designs ground in when they aren't this repository: the system being changed, contracts it builds against, references to imitate. Commit both files.
+Setup runs once per project. It detects where design docs already live in the repo, which systems this session can reach (tracker, Confluence, Notion, Linear, Figma). It asks only what it can't infer — where packages are published, who signs off, which design files to use — verifies each destination and source with a read-only call, and writes `.myco/team/design.md`. It also records the documentation and knowledge sources the team should ground in — product docs, API references, knowledge bases, including MCP servers that exist but aren't authorized yet — in `.myco/team/knowledge.md`, shared with the engineering team. The same file lists the codebases the designs ground in when they aren't this repository: the system being changed, contracts it builds against, references to imitate. Commit both files.
 
 Skipping it works: the product lead asks the minimum as it goes. But it asks again next time, and it won't know about your Confluence space or Figma file unless told.
 
@@ -139,5 +139,5 @@ templates/
   ux-template.md
   package-index.md        becomes <packages_dir>/<slug>/README.md
   review-summary.md       becomes <packages_dir>/<slug>/review.md
-  design-profile.md       becomes .claude/team/design.md
+  design-profile.md       becomes .myco/team/design.md
 ```

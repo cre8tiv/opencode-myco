@@ -123,8 +123,8 @@ export function checkProject({ cwd, root }) {
   const config = join(root, '..');
   const policy = (profileKey(cwd, 'merge_policy') || '').toLowerCase();
   const hasRule = existsSync(join(config, 'agents', 'engineering-team', 'tech-lead.md')) && /"gh pr merge\*": deny/.test(frontmatterOf(join(config, 'agents', 'engineering-team', 'tech-lead.md')));
-  if (!profileKey(cwd, 'merge_policy') && !existsSync(join(cwd, '.claude', 'team', 'project.md'))) {
-    out.push(r('info', 'project', 'no .claude/team/project.md here, so merging is gated by default (human-approval)'));
+  if (!profileKey(cwd, 'merge_policy') && !existsSync(join(cwd, '.myco', 'team', 'project.md'))) {
+    out.push(r('info', 'project', 'no .myco/team/project.md here, so merging is gated by default (human-approval)'));
   } else if (policy === 'autonomous' && hasRule) {
     out.push(r('warn', 'project', 'merge_policy is autonomous, but every agent denies gh pr merge natively, so merging will be blocked regardless', 'Reinstall with --allow-autonomous-merge. It applies to every project.'));
   } else {
@@ -136,7 +136,7 @@ export function checkProject({ cwd, root }) {
     accessSync(dir, constants.W_OK);
     out.push(r('ok', 'stream', `${resolveStreamName(cwd)}: events and friction are written to ${dir}`));
   } catch (e) {
-    out.push(r('fail', 'stream', `the event stream cannot be written: ${e.message}`, 'Check that ~/.claude/ops can be created and written.'));
+    out.push(r('fail', 'stream', `the event stream cannot be written: ${e.message}`, 'Check that ~/.local/share/myco/ops can be created and written.'));
   }
   return out;
 }

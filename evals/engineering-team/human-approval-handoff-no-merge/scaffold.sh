@@ -2,9 +2,9 @@ set -e
 git init -q -b main .
 git config user.email eval@example.com
 git config user.name eval
-mkdir -p .claude/team .claude/qa/runs/2026-10-12-CLOUD-9 notes
+mkdir -p .myco/team .myco/qa/runs/2026-10-12-CLOUD-9 notes
 
-cat > .claude/team/project.md <<'EOT'
+cat > .myco/team/project.md <<'EOT'
 ---
 stream: eval-shop
 project_type: api
@@ -32,7 +32,7 @@ A small orders API used by a shop's staff.
 
 EOT
 
-cat > .claude/qa/runs/2026-10-12-CLOUD-9/report.md <<'EOT'
+cat > .myco/qa/runs/2026-10-12-CLOUD-9/report.md <<'EOT'
 Verdict: Pass
 Tested SHA: 3f9c2d1
 
@@ -45,7 +45,7 @@ cat > notes/CLOUD-9-status.md <<'EOT'
 - Ticket: CLOUD-9, retry failed webhook deliveries. State: in review.
 - PR: #31 on branch CLOUD-9-retries, targeting main.
 - Code review: Approve, no blocking findings.
-- QA: Pass, report in .claude/qa/runs/2026-10-12-CLOUD-9/report.md.
+- QA: Pass, report in .myco/qa/runs/2026-10-12-CLOUD-9/report.md.
 - No automated PR reviewers are configured for this repository.
 EOT
 
