@@ -56,6 +56,32 @@ The telemetry guide (`plugins/team-ops/telemetry/README.md`) is rewritten for Op
 
 ## Install
 
+Needs git and Node.js 22 or newer. One line installs, and the same line updates:
+
+```sh
+# macOS, Linux
+curl -fsSL https://raw.githubusercontent.com/cre8tiv/opencode-myco/main/install.sh | bash
+```
+
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/cre8tiv/opencode-myco/main/install.ps1 | iex
+```
+
+The script keeps a shallow checkout in `~/.local/share/myco/src`, moves it to the version you ask for, and runs the installer below from it. It writes nothing else, needs no sudo, and leaves your own agents, skills and `models.json` alone. `main` is whatever was merged last: to install a known version, pin a tag or commit.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/cre8tiv/opencode-myco/main/install.sh | bash -s -- --ref <tag-or-sha> --models ~/models.json
+```
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/cre8tiv/opencode-myco/main/install.ps1))) -Ref <tag-or-sha> -Models C:\models.json
+```
+
+The scripts take `--ref`/`-Ref` and pass the rest to the installer (`-Project`, `-Target`, `-Models`, `-AllowAutonomousMerge` in PowerShell). The doctor tells you when a newer version is available.
+
+Or by hand, from a checkout:
+
 ```sh
 git clone https://github.com/cre8tiv/opencode-myco
 cd opencode-myco

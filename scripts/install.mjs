@@ -158,16 +158,20 @@ export function install({ target, models, repo = ROOT, mergeBackstop = true }) {
 
   // What was installed, for `myco doctor`: the merge backstop is the one choice recorded nowhere else.
   const versions = Object.fromEntries(teams.map((t) => [t, JSON.parse(readFileSync(join(repo, 'plugins', t, 'meta.json'), 'utf8')).version]));
+  // The commit installed and where it came from, so the doctor can say when the source has moved on.
   let source = null;
+  let sourceRepo = null;
   try {
-    source = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    const git = (...a) => execFileSync('git', a, { cwd: repo, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    source = git('rev-parse', 'HEAD');
+    sourceRepo = git('remote', 'get-url', 'origin');
   } catch {
-    // Not installed from a git checkout.
+    // Not installed from a git checkout, or one with no origin.
   }
   mkdirSync(join(target, 'myco'), { recursive: true });
   // The agents' modes and tiers, for what runs from the install (the doctor, models.mjs): the installed agents no longer say their tier.
   writeFileSync(join(target, 'myco', 'agents.json'), JSON.stringify(Object.fromEntries(sources.map((a) => [a.id, { mode: a.mode, tier: a.tier }])), null, 2) + '\n');
-  writeFileSync(join(target, 'myco', 'install.json'), JSON.stringify({ installedAt: new Date().toISOString(), source, teams: versions, agents: found, skills, mergeBackstop }, null, 2) + '\n');
+  writeFileSync(join(target, 'myco', 'install.json'), JSON.stringify({ installedAt: new Date().toISOString(), source, sourceRepo, teams: versions, agents: found, skills, mergeBackstop }, null, 2) + '\n');
   return { agents: found, skills, teams };
 }
 
