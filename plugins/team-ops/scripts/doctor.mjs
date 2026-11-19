@@ -43,7 +43,7 @@ const FEATURE_CORE = { capture: 'capture-core.mjs', 'coach-guard': 'coach-guard-
 /** @param {Result['level']} level @param {string} area @param {string} message @param {string} [fix] @returns {Result} */
 const r = (level, area, message, fix) => ({ level, area, message, ...(fix ? { fix } : {}) });
 
-const REINSTALL = 'Reinstall: node scripts/install.mjs --global (from the myco checkout).';
+const REINSTALL = 'Reinstall: run the install one-liner again (see the README), or node scripts/install.mjs --global from the myco checkout.';
 
 /**
  * A JSON file, told apart three ways: absent, present but unreadable, or its value. Treating an unreadable
@@ -164,6 +164,34 @@ export function checkModelMapping({ root, catalog }) {
   } catch (e) {
     return [r('fail', 'models', `models.json is not valid: ${e.message}`, 'Fix it, or run the init-models skill.')];
   }
+}
+
+/**
+ * The commit a git repository's default branch is at, or null when it cannot be asked (offline, moved, not git).
+ * A parameter of checkUpdate so tests can stand in for it.
+ * @param {string} repo @returns {string | null}
+ */
+export function remoteHead(repo) {
+  const res = spawnSync('git', ['ls-remote', repo, 'HEAD'], { encoding: 'utf8', timeout: 8000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } });
+  const sha = res.status === 0 ? res.stdout.split(/\s/)[0] : '';
+  return /^[0-9a-f]{40}$/.test(sha) ? sha : null;
+}
+
+/**
+ * Whether the source this install came from has moved on. Says nothing when it cannot tell: no record of the
+ * source, or no way to reach it. Not a fault either way: someone who pinned a version sees the same line.
+ * @param {{root: string, head?: (repo: string) => string | null}} p @returns {Result[]}
+ */
+export function checkUpdate({ root, head = remoteHead }) {
+  const record = readJsonFile(join(root, 'install.json'));
+  const install = 'value' in record ? record.value : null;
+  if (!install?.source || !install?.sourceRepo) return [];
+  const latest = head(String(install.sourceRepo));
+  if (!latest) return [];
+  const short = (s) => String(s).slice(0, 7);
+  return [latest === install.source
+    ? r('ok', 'update', `up to date with ${install.sourceRepo} (${short(latest)})`)
+    : r('info', 'update', `${install.sourceRepo} has moved on: installed ${short(install.source)}, now ${short(latest)}`, 'Update: run the install one-liner again (see the README), or git pull and node scripts/install.mjs --global in the checkout.')];
 }
 
 /**
@@ -323,7 +351,7 @@ function main(argv) {
   const cwd = resolve(get('--cwd') || process.cwd());
   const live = !argv.includes('--no-live');
   const results = [...checkInstall({ root }), ...checkProject({ cwd, root })];
-  const liveResults = live ? checkLive({ cwd, root }) : [];
+  const liveResults = live ? [...checkUpdate({ root }), ...checkLive({ cwd, root })] : [];
   results.push(...checkModelMapping({ root, catalog: live ? readCatalog() : null }), ...liveResults);
   if (!live) results.push(r('info', 'live', 'skipped (--no-live): nothing was checked against a running OpenCode'));
   if (argv.includes('--json')) console.log(JSON.stringify(results, null, 2));

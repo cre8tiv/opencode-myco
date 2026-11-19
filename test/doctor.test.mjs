@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { ROOT, sandbox } from './helpers.mjs';
 import { install } from '../scripts/install.mjs';
-import { CORES, FEATURES, PLUGIN_FILES, checkInstall, checkLive, checkModelMapping, checkProject, format, loadFailureFromLog } from '../plugins/team-ops/scripts/doctor.mjs';
+import { CORES, FEATURES, PLUGIN_FILES, checkInstall, checkLive, checkModelMapping, checkProject, checkUpdate, format, loadFailureFromLog, remoteHead } from '../plugins/team-ops/scripts/doctor.mjs';
 
 const read = (p) => readFileSync(p, 'utf8');
 const levels = (results) => results.map((x) => x.level);
@@ -31,6 +31,48 @@ function installed(t, opts = {}) {
   install({ target: config, ...opts });
   return { sb, config, root: join(config, 'myco'), agent: (id) => join(config, 'agents', `${id}.md`) };
 }
+
+describe('is there a newer myco', () => {
+  const A = 'a'.repeat(40);
+  const B = 'b'.repeat(40);
+  const record = (root, extra) => writeFileSync(join(root, 'install.json'), JSON.stringify({ teams: {}, installedAt: '2026-01-01', ...extra }));
+
+  test('says when the source has moved on, and how to update', (t) => {
+    const { root } = installed(t);
+    record(root, { source: A, sourceRepo: 'https://example.test/myco' });
+    const [u] = checkUpdate({ root, head: () => B });
+    assert.equal(u.level, 'info');
+    assert.match(u.message, /moved on: installed aaaaaaa, now bbbbbbb/);
+    assert.match(u.fix, /install one-liner/);
+  });
+
+  test('says so when it is current', (t) => {
+    const { root } = installed(t);
+    record(root, { source: A, sourceRepo: 'https://example.test/myco' });
+    assert.equal(checkUpdate({ root, head: () => A })[0].level, 'ok');
+  });
+
+  test('says nothing when the source cannot be reached or was never recorded', (t) => {
+    const { root } = installed(t);
+    record(root, { source: A, sourceRepo: 'https://example.test/myco' });
+    assert.deepEqual(checkUpdate({ root, head: () => null }), []);
+    record(root, { source: A });
+    assert.deepEqual(checkUpdate({ root, head: () => B }), []);
+    record(root, { sourceRepo: 'https://example.test/myco' });
+    assert.deepEqual(checkUpdate({ root, head: () => B }), []);
+  });
+
+  test('asks a real repository for its head, and gets null for one that is not there', (t) => {
+    const sb = sandbox(t);
+    const git = (cwd, ...a) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { cwd, encoding: 'utf8' });
+    git(sb.project, 'init', '-q', '-b', 'main');
+    writeFileSync(join(sb.project, 'f'), 'x');
+    git(sb.project, 'add', '-A');
+    git(sb.project, 'commit', '-q', '-m', 'c');
+    assert.equal(remoteHead(sb.project), git(sb.project, 'rev-parse', 'HEAD').trim());
+    assert.equal(remoteHead(join(sb.root, 'nothing-here')), null);
+  });
+});
 
 describe('the files', () => {
   test('a healthy install reports nothing wrong', (t) => {
