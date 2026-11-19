@@ -27,7 +27,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --ref) [ $# -ge 2 ] || die "--ref needs a value"; REF="$2"; shift 2 ;;
     --ref=*) REF="${1#--ref=}"; shift ;;
-    -h|--help) sed -n '2,17p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) ARGS+=("$1"); shift ;;
   esac
 done
@@ -36,10 +36,10 @@ command -v git >/dev/null 2>&1 || die "git is required"
 command -v node >/dev/null 2>&1 || die "Node.js 22 or newer is required (https://nodejs.org)"
 [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 22 ] || die "Node.js 22 or newer is required (found $(node -v))"
 
-# Global unless told otherwise: OpenCode finds a project install only where .opencode is committed.
+# Global unless told where: OpenCode finds a project install only where .opencode is committed.
 mode=
 for a in ${ARGS[@]+"${ARGS[@]}"}; do
-  case "$a" in --global|--project) mode=1 ;; esac
+  case "$a" in --global|--project|--target) mode=1 ;; esac
 done
 [ -n "$mode" ] || ARGS+=(--global)
 
@@ -59,4 +59,5 @@ git -C "$SRC" -c advice.detachedHead=false checkout -q --detach FETCH_HEAD \
   || die "could not check out '$REF' in $SRC (local changes there? delete the directory and run again)"
 echo "At $(git -C "$SRC" rev-parse --short HEAD)"
 
+echo "Installing: ${ARGS[*]}"
 exec node "$SRC/scripts/install.mjs" "${ARGS[@]}"

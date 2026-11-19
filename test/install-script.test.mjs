@@ -33,6 +33,7 @@ describe('install.sh', { skip: process.platform === 'win32' || !has('bash') }, (
     const global = join(sb.home, '.config', 'opencode');
     let r = run(sb, '--ref', 'HEAD');
     assert.equal(r.status, 0, r.stderr + r.stdout);
+    assert.match(r.stdout, /^Installing: --global$/m);
     assert.match(r.stdout, /Installed \d+ agents/);
     assertInstalled(global, sb);
     r = run(sb, '--ref=HEAD');
@@ -40,12 +41,26 @@ describe('install.sh', { skip: process.platform === 'win32' || !has('bash') }, (
     assertInstalled(global, sb);
   });
 
-  test('passes the installer its options, and does not add --global when told --target', (t) => {
+  test('passes the installer its options, and does not add --global when told --target or --project', (t) => {
     const sb = sandbox(t);
     const target = join(sb.root, 'out');
-    const r = run(sb, '--ref', 'HEAD', '--target', target);
+    let r = run(sb, '--ref', 'HEAD', '--target', target);
     assert.equal(r.status, 0, r.stderr + r.stdout);
+    assert.ok(r.stdout.includes(`Installing: --target ${target}`), r.stdout);
+    assert.doesNotMatch(r.stdout, /--global/);
     assertInstalled(target, sb);
+    r = run(sb, '--ref', 'HEAD', '--project', '--target', join(sb.root, 'out2'));
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    assert.match(r.stdout, /Installing: --project --target /);
+    assert.doesNotMatch(r.stdout, /--global/);
+  });
+
+  test('--help prints the header and none of the script', (t) => {
+    const r = spawnSync('bash', [join(ROOT, 'install.sh'), '--help'], { encoding: 'utf8', env: env(sandbox(t)) });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /Installs or updates myco/);
+    assert.match(r.stdout, /MYCO_REPO overrides the repository/);
+    assert.doesNotMatch(r.stdout, /set -euo pipefail/);
   });
 
   test('a ref that does not exist stops with a message and installs nothing', (t) => {
@@ -90,6 +105,8 @@ describe('install.ps1', { skip: !PWSH }, () => {
     const target = join(sb.root, 'out');
     let r = run(sb, '-Ref', 'HEAD', '-Target', target);
     assert.equal(r.status, 0, r.stderr + r.stdout);
+    assert.ok(r.stdout.includes(`Installing: --target ${target}`), r.stdout);
+    assert.doesNotMatch(r.stdout, /--global/, 'a -Target install is not also --global');
     assertInstalled(target, sb);
     r = run(sb, '-Ref', 'HEAD', '-Target', target);
     assert.equal(r.status, 0, r.stderr + r.stdout);

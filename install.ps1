@@ -56,9 +56,12 @@ if ($LASTEXITCODE -ne 0) { throw "myco install: could not fetch '$Ref' from $Rep
 if ($LASTEXITCODE -ne 0) { throw "myco install: could not check out '$Ref' in $Src (local changes there? delete the directory and run again)" }
 Write-Host "At $(& git -C $Src rev-parse --short HEAD)"
 
-$installer = @((Join-Path $Src 'scripts/install.mjs'), $(if ($Project) { '--project' } else { '--global' }))
+# Global unless told where, as install.sh does.
+$installer = @((Join-Path $Src 'scripts/install.mjs'))
+if ($Project) { $installer += '--project' } elseif (-not $Target) { $installer += '--global' }
 if ($Target) { $installer += @('--target', $Target) }
 if ($Models) { $installer += @('--models', $Models) }
 if ($AllowAutonomousMerge) { $installer += '--allow-autonomous-merge' }
+Write-Host "Installing: $($installer[1..($installer.Count - 1)] -join ' ')"
 & node @installer
 if ($LASTEXITCODE -ne 0) { throw "myco install: the installer failed (exit $LASTEXITCODE)" }
