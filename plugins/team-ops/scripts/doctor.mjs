@@ -19,6 +19,7 @@ import { spawnSync } from 'node:child_process';
 import { accessSync, constants, existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { otherInstalls } from './installs.mjs';
 import { AGENT_MAP, AGENTS_PROBLEM, checkModels, readCatalog, warnings } from './models.mjs';
 import { profileKey } from './profile.mjs';
 import { streamDir, resolveStreamName } from './stream.mjs';
@@ -164,6 +165,17 @@ export function checkModelMapping({ root, catalog }) {
   } catch (e) {
     return [r('fail', 'models', `models.json is not valid: ${e.message}`, 'Fix it, or run the init-models skill.')];
   }
+}
+
+/**
+ * Whether myco is installed in a second place OpenCode would also load it from (the user's config and the project's
+ * .opencode): two copies of the plugin collide and OpenCode reports a plugin failure.
+ * @param {{root: string, cwd: string}} p @returns {Result[]}
+ */
+export function checkDuplicate({ root, cwd }) {
+  return otherInstalls(join(root, '..'), cwd).map((other) =>
+    r('fail', 'duplicate', `myco is installed here (${join(root, '..')}) and in ${other}: OpenCode loads both and reports a plugin failure`, `Keep one. Remove the other: run the install script with --uninstall --target "${other}" (README, "Uninstall").`),
+  );
 }
 
 /**
@@ -350,7 +362,7 @@ function main(argv) {
   }
   const cwd = resolve(get('--cwd') || process.cwd());
   const live = !argv.includes('--no-live');
-  const results = [...checkInstall({ root }), ...checkProject({ cwd, root })];
+  const results = [...checkInstall({ root }), ...checkDuplicate({ root, cwd }), ...checkProject({ cwd, root })];
   const liveResults = live ? [...checkUpdate({ root }), ...checkLive({ cwd, root })] : [];
   results.push(...checkModelMapping({ root, catalog: live ? readCatalog() : null }), ...liveResults);
   if (!live) results.push(r('info', 'live', 'skipped (--no-live): nothing was checked against a running OpenCode'));

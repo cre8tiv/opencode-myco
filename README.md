@@ -80,6 +80,19 @@ curl -fsSL https://raw.githubusercontent.com/cre8tiv/opencode-myco/main/install.
 
 The scripts take `--ref`/`-Ref` and pass the rest to the installer (`-Project`, `-Target`, `-Models`, `-AllowAutonomousMerge` in PowerShell). The doctor tells you when a newer version is available.
 
+**Install it once.** OpenCode loads agents and plugins from your user config (`--global`) and from a project's `.opencode` (`--project`), and loads both. Two copies of the plugin collide and OpenCode reports a plugin failure. The installer warns when it finds the other copy, and the doctor reports it as a failure with the command to remove one.
+
+**Uninstall.** Removes what an install put there, as its `install.json` lists it, and nothing else. Your own agents and skills stay, and so does `models.json`, your model mapping:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/cre8tiv/opencode-myco/main/install.sh | bash -s -- --uninstall            # the global install
+curl -fsSL https://raw.githubusercontent.com/cre8tiv/opencode-myco/main/install.sh | bash -s -- --uninstall --project  # this project's
+```
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/cre8tiv/opencode-myco/main/install.ps1))) -Uninstall          # global; add -Project or -Target <dir>
+```
+
 Or by hand, from a checkout:
 
 ```sh
