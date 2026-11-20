@@ -16,6 +16,7 @@
 #   -Target <dir>           install into this directory
 #   -Models <file>          map your models to the teams as you install; see the README
 #   -AllowAutonomousMerge   for projects that set merge_policy: autonomous; see the README
+#   -Uninstall              remove what an install put there (with -Project or -Target to say where; global by default)
 #
 # Needs git and Node.js 22 or newer. $env:MYCO_REPO overrides the repository, for a fork.
 [CmdletBinding()]
@@ -24,7 +25,8 @@ param(
   [switch]$Project,
   [string]$Target,
   [string]$Models,
-  [switch]$AllowAutonomousMerge
+  [switch]$AllowAutonomousMerge,
+  [switch]$Uninstall
 )
 
 # No `exit` anywhere: run through `irm | iex` it would close the caller's PowerShell. A failure is a throw.
@@ -62,6 +64,7 @@ if ($Project) { $installer += '--project' } elseif (-not $Target) { $installer +
 if ($Target) { $installer += @('--target', $Target) }
 if ($Models) { $installer += @('--models', $Models) }
 if ($AllowAutonomousMerge) { $installer += '--allow-autonomous-merge' }
+if ($Uninstall) { $installer += '--uninstall' }
 Write-Host "Installing: $($installer[1..($installer.Count - 1)] -join ' ')"
 & node @installer
 if ($LASTEXITCODE -ne 0) { throw "myco install: the installer failed (exit $LASTEXITCODE)" }

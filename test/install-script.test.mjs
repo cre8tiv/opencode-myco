@@ -55,6 +55,18 @@ describe('install.sh', { skip: process.platform === 'win32' || !has('bash') }, (
     assert.doesNotMatch(r.stdout, /--global/);
   });
 
+  test('--uninstall goes through to the installer, for the place named, and removes that install', (t) => {
+    const sb = sandbox(t);
+    const target = join(sb.root, 'out');
+    assert.equal(run(sb, '--ref', 'HEAD', '--target', target).status, 0);
+    const r = run(sb, '--ref', 'HEAD', '--uninstall', '--target', target);
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    assert.match(r.stdout, /Installing: --uninstall --target /);
+    assert.doesNotMatch(r.stdout, /--global/);
+    assert.match(r.stdout, /Removed myco from/);
+    assert.ok(!existsSync(join(target, 'plugins', 'myco')));
+  });
+
   test('--help prints the header and none of the script', (t) => {
     const r = spawnSync('bash', [join(ROOT, 'install.sh'), '--help'], { encoding: 'utf8', env: env(sandbox(t)) });
     assert.equal(r.status, 0, r.stderr);
@@ -111,6 +123,16 @@ describe('install.ps1', { skip: !PWSH }, () => {
     r = run(sb, '-Ref', 'HEAD', '-Target', target);
     assert.equal(r.status, 0, r.stderr + r.stdout);
     assertInstalled(target, sb);
+  });
+
+  test('-Uninstall removes the install at -Target', (t) => {
+    const sb = sandbox(t);
+    const target = join(sb.root, 'out');
+    assert.equal(run(sb, '-Ref', 'HEAD', '-Target', target).status, 0);
+    const r = run(sb, '-Ref', 'HEAD', '-Uninstall', '-Target', target);
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+    assert.match(r.stdout, /Removed myco from/);
+    assert.ok(!existsSync(join(target, 'plugins', 'myco')));
   });
 
   test('a ref that does not exist stops with a message', (t) => {

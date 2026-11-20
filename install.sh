@@ -11,7 +11,8 @@
 #
 #   --ref <ref>   a branch, tag or commit to install (default: main). Pin one to install a known version.
 #   anything else is passed to the installer: --global (the default here), --project, --target <dir>,
-#   --models <file>, --allow-autonomous-merge. See the README.
+#   --models <file>, --allow-autonomous-merge, --uninstall (removes an install; with --global, --project or --target).
+#   See the README.
 #
 # Needs git and Node.js 22 or newer. MYCO_REPO overrides the repository, for a fork.
 set -euo pipefail
@@ -27,7 +28,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --ref) [ $# -ge 2 ] || die "--ref needs a value"; REF="$2"; shift 2 ;;
     --ref=*) REF="${1#--ref=}"; shift ;;
-    -h|--help) sed -n '2,16p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n "2,17p" "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) ARGS+=("$1"); shift ;;
   esac
 done

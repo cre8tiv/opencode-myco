@@ -2,6 +2,7 @@
 // Installs the myco teams into OpenCode.
 //
 //   node scripts/install.mjs --global | --project [--target <dir>] [--models <file>] [--allow-autonomous-merge]
+//   node scripts/install.mjs --uninstall (--global | --project | --target <dir>)
 //
 // OpenCode has no plugin marketplace and its plugins cannot add agents, so the agents
 // and skills are copied into its config directory as files:
@@ -34,12 +35,13 @@
 // swaps the tier for the model the user's mapping gives it and adds the merge backstop. Only what the script
 // owns is replaced on a reinstall: a user's own agents, skills and models.json are left alone.
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parseAgent, readAgentSources, splitAgent } from '../plugins/team-ops/scripts/agent-source.mjs';
+import { otherInstalls } from '../plugins/team-ops/scripts/installs.mjs';
 import { MERGE_BACKSTOP, checkModels, modelLines, refFor } from '../plugins/team-ops/scripts/models.mjs';
 
 export { splitAgent };
@@ -175,17 +177,79 @@ export function install({ target, models, repo = ROOT, mergeBackstop = true }) {
   return { agents: found, skills, teams };
 }
 
+/** An agent id (team/role) or a skill name as the installer writes them: never a path that leaves its directory. */
+const SAFE_NAME = /^[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)?$/;
+
+/**
+ * Removes what an install put under target, as its install.json lists it, and nothing else: not a user's own agents
+ * or skills, and not models.json, which is the user's mapping. Without an install.json there is nothing it can vouch for.
+ * @param {{target: string}} p
+ * @returns {{removed: string[], kept: string[]} | null} null when target holds no install
+ */
+export function uninstall({ target }) {
+  const recordFile = join(target, 'myco', 'install.json');
+  if (!existsSync(recordFile)) return null;
+  const record = JSON.parse(readFileSync(recordFile, 'utf8'));
+  const names = (list) => (Array.isArray(list) ? list : []).filter((n) => typeof n === 'string');
+  const agents = names(record.agents);
+  const skills = names(record.skills);
+  const teams = Object.keys(record.teams || {});
+  const bad = [...agents, ...skills, ...teams].filter((n) => !SAFE_NAME.test(n));
+  if (bad.length) throw new Error(`${recordFile} names ${bad.map((n) => JSON.stringify(n)).join(', ')}, which are not agent, skill or team names; not removing anything`);
+
+  /** @type {string[]} */
+  const removed = [];
+  const drop = (rel, { dir = false } = {}) => {
+    const p = join(target, rel);
+    if (!existsSync(p)) return;
+    rmSync(p, { recursive: dir, force: true });
+    removed.push(rel);
+  };
+  for (const id of agents) drop(join('agents', `${id}.md`));
+  for (const team of new Set(agents.map((id) => id.split('/')[0]))) {
+    try {
+      rmdirSync(join(target, 'agents', team)); // only if now empty: a user's own agent in it stays
+    } catch {
+      /* not empty, or not there */
+    }
+  }
+  for (const name of skills) drop(join('skills', name), { dir: true });
+  for (const team of teams) drop(join('myco', team), { dir: true });
+  drop(join('myco', 'agents.json'));
+  drop(join('myco', 'install.json'));
+  drop(join('plugins', 'myco'), { dir: true });
+  const kept = [];
+  if (existsSync(join(target, 'myco', 'models.json'))) kept.push(join('myco', 'models.json'));
+  else {
+    try {
+      rmdirSync(join(target, 'myco'));
+    } catch {
+      /* something else is in it */
+    }
+  }
+  return { removed, kept };
+}
+
 /** @param {string[]} argv */
 function main(argv) {
   const get = (f) => (argv.includes(f) ? argv[argv.indexOf(f) + 1] : undefined);
   const mode = argv.includes('--global') ? 'global' : argv.includes('--project') ? 'project' : null;
   if (!mode && !get('--target')) {
-    console.error('usage: install.mjs --global | --project [--target <dir>] [--models <file>] [--allow-autonomous-merge]');
+    console.error('usage: install.mjs --global | --project [--target <dir>] [--models <file>] [--allow-autonomous-merge]\n       install.mjs --uninstall (--global | --project | --target <dir>)');
     process.exit(2);
   }
   const target = resolve(
     get('--target') || (mode === 'global' ? join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'opencode') : join(process.cwd(), '.opencode')),
   );
+  if (argv.includes('--uninstall')) {
+    const gone = uninstall({ target });
+    if (!gone) console.log(`Nothing to uninstall: no myco install in ${target}`);
+    else {
+      console.log(`Removed myco from ${target}: ${gone.removed.length} paths (agents, skills, the plugin and its scripts).`);
+      if (gone.kept.length) console.log(`Kept ${gone.kept.join(', ')}: it is your model mapping, and a reinstall will use it.`);
+    }
+    return;
+  }
   const modelsFile = get('--models') || (existsSync(join(target, 'myco', 'models.json')) ? join(target, 'myco', 'models.json') : null);
   const mergeBackstop = !argv.includes('--allow-autonomous-merge');
   const result = install({ target, models: modelsFile ? JSON.parse(readFileSync(modelsFile, 'utf8')) : undefined, mergeBackstop });
@@ -198,6 +262,10 @@ function main(argv) {
       (mergeBackstop ? '' : '; agents may run `gh pr merge` where a project\'s merge_policy allows it'),
   );
   console.log(`Check it from any project, at any time: node "${join(target, 'myco', 'team-ops', 'scripts', 'doctor.mjs')}"`);
+  // OpenCode loads both a user-level and a project-level copy, and the two plugins collide.
+  for (const other of otherInstalls(target, process.cwd())) {
+    console.log(`\nWARNING: myco is also installed in ${other}. OpenCode loads both copies and reports a plugin failure.\nKeep one: node "${fileURLToPath(import.meta.url)}" --uninstall --target "${other}"`);
+  }
 }
 
 /** Whether this file is the one being run. Both sides are resolved: a symlinked path (a macOS temp directory, a dotfiles-managed config) differs from the real one, and the script would silently do nothing. */
