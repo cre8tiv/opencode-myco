@@ -538,3 +538,95 @@ describe('the design hub', () => {
     assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   });
 });
+
+describe('--standalone, for a page opened as a file', () => {
+  const MERMAID = { 'architecture.md': ['# Arch', '', '```mermaid', 'flowchart LR', '  A --> B', '```'].join('\n') };
+
+  /** Renders the hub and returns the HTML. */
+  async function renderHub(sb, extra = []) {
+    pkg(sb);
+    const out = join(sb.root, 'out', 'hub.html');
+    const r = await runNode(RENDER, { args: ['hub', '--dir', join(sb.root, 'docs', 'design'), '--title', 'Hub', '--out', out, ...extra], cwd: sb.root, env: sb.env });
+    assert.equal(r.status, 0, r.stderr);
+    return readFileSync(out, 'utf8');
+  }
+
+  test('without the flag the output is the fragment the artifact host wraps, with no Mermaid loader', async (t) => {
+    const sb = sandbox(t);
+    const page = await render(sb, pkg(sb, MERMAID));
+    assert.ok(page.startsWith('<title>'), page.slice(0, 40));
+    assert.doesNotMatch(page, /<!doctype|<html|mermaid\.min\.js/i);
+  });
+
+  test('the package page is a whole document that loads one pinned, integrity-checked Mermaid build', async (t) => {
+    const sb = sandbox(t);
+    // The flag comes before --out, so a value-less flag must not swallow the next one.
+    const page = await render(sb, pkg(sb, MERMAID), ['--standalone', '--round', '2']);
+    assert.match(page, /^<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">/);
+    assert.match(page, /<\/body>\n<\/html>\n$/);
+    assert.match(page, /Review round <b>2<\/b>/);
+    const tags = [...page.matchAll(/<script src="([^"]+)" integrity="(sha384-[A-Za-z0-9+/=]+)" crossorigin="anonymous"><\/script>/g)];
+    assert.equal(tags.length, 1);
+    assert.match(tags[0][1], /^https:\/\/cdn\.jsdelivr\.net\/npm\/mermaid@\d+\.\d+\.\d+\/dist\/mermaid\.min\.js$/);
+  });
+
+  test('a page with no diagrams, and the hub, get the document but no loader', async (t) => {
+    const sb = sandbox(t);
+    const page = await render(sb, pkg(sb), ['--standalone']);
+    assert.match(page, /^<!doctype html>/);
+    assert.doesNotMatch(page, /mermaid\.min\.js/);
+    const hub = await renderHub(sb, ['--standalone']);
+    assert.match(hub, /^<!doctype html>/);
+    assert.doesNotMatch(hub, /mermaid\.min\.js/);
+  });
+
+  /**
+   * Runs the page's diagram script against a minimal DOM and a stub Mermaid.
+   * @param {string} html @param {{mermaid?: boolean, fail?: boolean}} opts
+   */
+  async function draw(html, { mermaid = true, fail = false } = {}) {
+    const code = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).find((s) => s.includes('pre.mermaid'));
+    assert.ok(code, 'no diagram script');
+    const attrs = {};
+    const root = { getAttribute: (k) => attrs[k] ?? null };
+    const block = { textContent: 'flowchart LR\n  A --> B', innerHTML: '' };
+    const themes = [];
+    let observed = null;
+    const stub = {
+      initialize: (c) => themes.push(c.theme),
+      render: (_, src) => (fail ? Promise.reject(new Error('parse')) : Promise.resolve({ svg: `<svg>${src.length}</svg>` })),
+    };
+    const globals = {
+      document: { documentElement: root, querySelectorAll: (s) => (s === 'pre.mermaid' ? [block] : []) },
+      window: { mermaid: mermaid ? stub : undefined, matchMedia: () => ({ matches: false, addEventListener() {} }) },
+      MutationObserver: class { constructor(f) { observed = f; } observe() {} },
+    };
+    vm.runInNewContext(code, globals);
+    await new Promise((r) => setImmediate(r));
+    return {
+      block, themes,
+      switchTo: async (t) => { attrs['data-theme'] = t; observed(); await new Promise((r) => setImmediate(r)); },
+    };
+  }
+
+  test('diagrams are drawn in the page scheme and redrawn from their source when it switches', async (t) => {
+    const sb = sandbox(t);
+    const page = await render(sb, pkg(sb, MERMAID), ['--standalone']);
+    const d = await draw(page);
+    assert.equal(d.block.innerHTML, '<svg>22</svg>');
+    assert.deepEqual(d.themes, ['default']);
+    await d.switchTo('dark');
+    assert.deepEqual(d.themes, ['default', 'dark']);
+    assert.equal(d.block.innerHTML, '<svg>22</svg>', 'redrawn from the source, not from the drawn SVG');
+  });
+
+  test('offline, or a diagram Mermaid cannot parse, leaves the source readable', async (t) => {
+    const sb = sandbox(t);
+    const page = await render(sb, pkg(sb, MERMAID), ['--standalone']);
+    const offline = await draw(page, { mermaid: false });
+    assert.equal(offline.block.innerHTML, '');
+    assert.equal(offline.block.textContent, 'flowchart LR\n  A --> B');
+    const bad = await draw(page, { fail: true });
+    assert.equal(bad.block.textContent, 'flowchart LR\n  A --> B');
+  });
+});

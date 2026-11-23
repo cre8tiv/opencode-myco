@@ -27,10 +27,10 @@ A design package is written for engineering: precise, cross-referenced, and long
 4. **Commit, then render.** Commit the package (by path, never `git add -A`) so the page can name the commit it was rendered from, then:
 
    ```
-   node "$MYCO_ROOT/design-team/scripts/render-review.mjs" package --dir <packages_dir>/<slug> --title "<product_name> <initiative> design" --round <n> --out <dir>/<slug>-review.html
+   node "$MYCO_ROOT/design-team/scripts/render-review.mjs" package --dir <packages_dir>/<slug> --title "<product_name> <initiative> design" --round <n> --standalone --out <dir>/<slug>-review.html
    ```
 
-   Render into the system temp directory, or wherever the human says, not into the repository: the HTML is derived from the markdown, and a committed copy would drift from it. The initiative is the name in the package index's `#` heading. The script reports the file's size.
+   `--standalone` writes a whole HTML document that draws its Mermaid diagrams when opened from disk; keep it, since the page is always opened as a file here.    Render into the system temp directory, or wherever the human says, not into the repository: the HTML is derived from the markdown, and a committed copy would drift from it. The initiative is the name in the package index's `#` heading. The script reports the file's size.
 
 5. **Record the round** in the package index's **Review** section, with the date and the commit it was rendered from. Commit.
 
@@ -39,7 +39,7 @@ A design package is written for engineering: precise, cross-referenced, and long
 A design hub, one page listing every package with its status, owner and last update, renders the same way when the human asks for it:
 
 ```
-node "$MYCO_ROOT/design-team/scripts/render-review.mjs" hub --dir <packages_dir> --title "<product_name> design packages" --out <dir>/design-hub.html
+node "$MYCO_ROOT/design-team/scripts/render-review.mjs" hub --dir <packages_dir> --title "<product_name> design packages" --standalone --out <dir>/design-hub.html
 ```
 
 ## Collect feedback
