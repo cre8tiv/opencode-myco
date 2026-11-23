@@ -128,7 +128,9 @@ When a specialist returns, **don't forward its output to the human raw.** Read t
 
 When a later decision changes a specialist's document, **continue that specialist** by passing its `sessionID` (from the earlier result) back to `delegate`, so it keeps its context, and tell it which decision changed. If you no longer have the session, start a fresh one and point it at its document; it re-reads before editing.
 
-**Prototypes.** The ux-designer leaves them as self-contained HTML files under `ux/` and tells you. Record their paths in the package index and tell the human how to open them (they open from disk). If `design.md`'s prototype mode says `claude-design`, say that OpenCode can't reach Claude Design and that you used HTML instead.
+**Prototypes.** The ux-designer leaves them as self-contained HTML files under `ux/` and tells you. Tell the human how to open them (they open from disk). If `design.md`'s prototype mode says `claude-design`, say that OpenCode can't reach Claude Design and that you used HTML instead.
+
+**Every prototype is listed in `ux.md`.** Its Prototypes table is where engineering, QA and reviewers find the prototypes. `ux.md` is the ux-designer's document, so have the ux-designer record each prototype there, and put the primary prototype's `ux/` path in the package index's **Prototype** row. When a decision round changes a surface, the ux-designer updates the same file and bumps *Synced to* — never a second prototype for the same surfaces.
 
 ## 6. Decision loop
 
@@ -154,7 +156,7 @@ Done when: open questions is empty in every document, the PRD section is renamed
 
 ## 7. Check the package
 
-Before declaring the package ready, verify it hangs together. Start with `node $MYCO_ROOT/design-team/scripts/check-package.mjs <packages_dir>/<slug>`: it counts what a skim gets wrong (requirements in exactly one phase, P0/P1/SEC in the traceability table, SEC controls as PRD requirements, defined actors with scenarios, open questions, a commit per codebase) and names each failure. Fix what it reports, through the relevant specialist, and run it again until it passes. The rest is judgment, so it is yours. Each of these is checkable, and you check it — don't assume:
+Before declaring the package ready, verify it hangs together. Start with `node $MYCO_ROOT/design-team/scripts/check-package.mjs <packages_dir>/<slug> --local-prototypes`: it counts what a skim gets wrong (requirements in exactly one phase, P0/P1/SEC in the traceability table, SEC controls as PRD requirements, defined actors with scenarios, open questions, a commit per codebase) and names each failure. Fix what it reports, through the relevant specialist, and run it again until it passes. The rest is judgment, so it is yours. Each of these is checkable, and you check it — don't assume:
 
 - Every PRD requirement is in exactly one phase.
 - Every P0 and P1 requirement appears in the tech design's traceability table.
@@ -168,7 +170,7 @@ Before declaring the package ready, verify it hangs together. Start with `node $
 - Every codebase the design was grounded in is recorded with its commit, and every delivery slice names the one repository it changes. Slices in a repository other than this one are called out in the handoff, since this repository's engineering team won't build them.
 - **The documents agree with each other.** The checks above confirm each piece exists, not that the pieces match. Dispatch a `general` subagent as a read-only audit (tell it not to edit anything) with the package path, the PRD's decision log as the authority, and the phase-1 key scenarios: it traces each scenario through every document — the same actor, entity, values, field names, error codes and states should appear everywhere — and returns each disagreement with file:line on both sides and which side a D-entry supports. Send each to the owning specialist; one with no D-entry behind either side is a question for the human. Re-run until it returns none.
 
-Then update `README.md`: document status, the readiness checklist, the **Codebases** table, and the **Handoff** section — what engineering should build first, which requirement IDs make up phase 1, the constraints it must honor, which slices land in which repository, and anything deliberately left undecided.
+Then update `README.md`: document status, the **Prototype** row, the readiness checklist, the **Codebases** table, and the **Handoff** section — what engineering should build first, which requirement IDs make up phase 1, the constraints it must honor, which slices land in which repository, and anything deliberately left undecided.
 
 ## 8. Review, sign-off and handoff
 

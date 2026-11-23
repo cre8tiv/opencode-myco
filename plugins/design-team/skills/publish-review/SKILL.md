@@ -20,9 +20,11 @@ A design package is written for engineering: precise, cross-referenced, and long
 
 1. **Re-read every document in the package**, in full. The human may have edited any of them since you last did.
 
-2. **Write or update `review.md`** in the package from `$MYCO_ROOT/design-team/templates/review-summary.md`. This is the Overview reviewers read first. Write it for someone who hasn't opened the package, who doesn't know what the IDs mean: plain words first, the ID after it as a reference, ranges named by what they cover, as the template says. Link to the documents rather than restating them, and make *What we want feedback on* specific: questions naming who is best placed to answer.
+2. **Check the prototypes are listed.** If the package has `ux.md` and `design.md`'s `ux_prototypes` isn't `wireframes`, every row in `ux.md`'s Prototypes table needs a `ux/` path that exists. A row marked stale means the prototype lags `ux.md`: have the ux-designer update it, or say so at the top of the Overview. `ux.md` is the ux-designer's document, so don't edit it yourself. Make sure the package index's **Prototype** row names the same path as the first row of that table.
 
-3. **Commit, then render.** Commit the package (by path, never `git add -A`) so the page can name the commit it was rendered from, then:
+3. **Write or update `review.md`** in the package from `$MYCO_ROOT/design-team/templates/review-summary.md`. This is the Overview reviewers read first. Write it for someone who hasn't opened the package, who doesn't know what the IDs mean: plain words first, the ID after it as a reference, ranges named by what they cover, as the template says. Link to the documents rather than restating them, and make *What we want feedback on* specific: questions naming who is best placed to answer. Name the primary prototype by its `ux/` path in *How it works*, as the template says; the page shows it as a path for the reader to open from the files you send.
+
+4. **Commit, then render.** Commit the package (by path, never `git add -A`) so the page can name the commit it was rendered from, then:
 
    ```
    node "$MYCO_ROOT/design-team/scripts/render-review.mjs" package --dir <packages_dir>/<slug> --title "<product_name> <initiative> design" --round <n> --out <dir>/<slug>-review.html
@@ -30,9 +32,9 @@ A design package is written for engineering: precise, cross-referenced, and long
 
    Render into the system temp directory, or wherever the human says, not into the repository: the HTML is derived from the markdown, and a committed copy would drift from it. The initiative is the name in the package index's `#` heading. The script reports the file's size.
 
-4. **Record the round** in the package index's **Review** section, with the date and the commit it was rendered from. Commit.
+5. **Record the round** in the package index's **Review** section, with the date and the commit it was rendered from. Commit.
 
-5. **Tell the human** where the file is, that it is a snapshot of that commit (it goes stale when the package changes), who might review it (the sign-off names in `design.md`, and anyone the *What we want feedback on* questions name), and to bring the feedback back to you when it is in.
+6. **Tell the human** where the file is, that it is a snapshot of that commit (it goes stale when the package changes), who might review it (the sign-off names in `design.md`, and anyone the *What we want feedback on* questions name), that the page doesn't carry the prototypes (send the package's `ux/` files along with it), and to bring the feedback back to you when it is in.
 
 A design hub, one page listing every package with its status, owner and last update, renders the same way when the human asks for it:
 
@@ -57,7 +59,7 @@ When the human brings feedback back:
 
 4. **Run the round** through the product lead's decision loop: the human decides, every decision is logged and cascades through every document as usual, and specialists are continued for their documents.
 
-5. **Re-render** with the next round number, and record the round in the package index's **Review** section.
+5. **Re-render** with the next round number, after checking that every prototype the round changed was updated and its *Synced to* bumped (step 2 of *Render a package*), and record the round in the package index's **Review** section.
 
 6. **Give the human a reply for each commenter**: what changed and the D-number, or why nothing did. You can't reply on the page; they pass it on.
 

@@ -1,19 +1,19 @@
 {
   "upstream": {
     "url": "https://github.com/cre8tiv/myco.git",
-    "commit": "3d8ba8ab72c5269c70767c10db736bd7447fc5be"
+    "commit": "fcd69105f93da02e04c63e66cfa6505a8dc7e074"
   },
   "files": {
-    "plugins/design-team/scripts/check-package.mjs": "5136fdbe8d84d0e4f15116f9d3d060d6da0f653cd4c7f5a327ed5f9494f878d9",
+    "plugins/design-team/scripts/check-package.mjs": "a145346a8f5597f414eda7ff475de8b7fa2ddb8ac81ec51a18046d3d3ac09127",
     "plugins/design-team/scripts/render-review.mjs": "dbd1e955d8764842296bd1a559ac85adb527130aee258d87cb62bc9c795580f1",
     "plugins/design-team/templates/architecture-template.md": "ab42266ea252b1f3ec1fdc342cc4c41f2b46992c7df9c00f5b80cedd767b6c74",
-    "plugins/design-team/templates/design-profile.md": "742712aeb7993a810123e59a7cc70f6265c634bc23d5d785732d6cd4a33098f5",
+    "plugins/design-team/templates/design-profile.md": "7b53c393d6381de6fa8cb2fa596e512839f666fce8d7f22236f123880d6c92f1",
     "plugins/design-team/templates/prd-template.md": "ca5941ec6d6cc295d4be9cb5476244e01786b1b88bb6251f56ad25222046a750",
-    "plugins/design-team/templates/review-summary.md": "4f2fb5cd739f6cbadf8950d8cd9ec6a9f1bfada121e6411c0e0ba374fbdf7bd7",
+    "plugins/design-team/templates/review-summary.md": "eec8f53d5f82ff28775c8daa722bde70457ea4652cca4aefe53ce6471136b74d",
     "plugins/design-team/templates/security-review-template.md": "4371620b0f33752011b36b269b6a7fd4e9306d8a0a0b89df27e1284a0d4c2b25",
     "plugins/design-team/templates/tech-design-template.md": "0bb91a85f6c0e0c72d98cdf1b6681cef6dbd8f9dee4b7e6dff0a238c1632258e",
-    "plugins/design-team/templates/ux-template.md": "f9e447be23c9fc524279aeb7e7044b4fc49e05d784b90b34e72e321a09f542a3",
-    "plugins/engineering-team/scripts/check-package.mjs": "5136fdbe8d84d0e4f15116f9d3d060d6da0f653cd4c7f5a327ed5f9494f878d9",
+    "plugins/design-team/templates/ux-template.md": "c64820b11f149091e6b8a4ade70b2fbb91bdfcff8d7e94f102912d5c01ccb88f",
+    "plugins/engineering-team/scripts/check-package.mjs": "a145346a8f5597f414eda7ff475de8b7fa2ddb8ac81ec51a18046d3d3ac09127",
     "plugins/engineering-team/templates/qa/INDEX.md": "ffb437336e40f1b4a48bcc410d7b4b30d04191fd8d3fc66c03c099cda5061e19",
     "plugins/engineering-team/templates/qa/fixtures/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "plugins/engineering-team/templates/qa/plans/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",

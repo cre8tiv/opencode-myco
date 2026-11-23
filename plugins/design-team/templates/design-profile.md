@@ -12,7 +12,7 @@ ux_prototypes: <html>
 review_pages: <artifact>
 # product name used in review page titles, e.g. "Northwind"
 product_name: <Product>
-# the design hub's claude.ai link; written the first time a review page is published
+# the design hub's claude.ai link: a shared hub found at init, or written the first time a review page is published
 review_hub: <none>
 generated: <YYYY-MM-DD>
 ---

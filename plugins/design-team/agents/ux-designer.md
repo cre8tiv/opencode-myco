@@ -43,12 +43,20 @@ Use the **prototype mode** in `design.md`: `html` (the default) or `wireframes` 
 
 Write each prototype as a single self-contained HTML file under `ux/` in the package: inline CSS and JS, no external assets, real copy, and every state from your states table reachable (a state switcher is fine). Apply the canonical design system's tokens — colors, type, spacing — so it looks like the product rather than a generic page. It must open from disk. Tell the product-lead which prototypes are ready.
 
-Link every prototype from `ux.md`, next to the surface it shows, by its path in the package.
+### Link every prototype into `ux.md`
+
+A prototype nobody can find from the package doesn't exist for engineering, QA or reviewers. As soon as one exists:
+
+- **Record it in `ux.md`'s Prototypes table**: kind, its `ux/<file>.html` path as the link, the surfaces and states it shows, and the round and D-decision it's synced to. The first row is the primary prototype; the product-lead copies its path into the package index.
+- **Link each surface to it**: the inventory's *Prototype* column points at the prototype that shows that surface, or says "wireframe only".
+
+**Keep it in step with `ux.md`.** When a decision changes a surface, update the existing file and bump *Synced to*. Don't start a second prototype for the same surfaces: the file a reviewer opened in round 1 has to show round 3. If you can't update it this time, write "stale — synced to round n" in that row's *Synced to* cell and tell the product-lead.
 
 ## What you return to the product-lead
 
-- **What you wrote** — flows, surfaces, and prototypes by name, with links or paths.
-- **Prototypes awaiting publishing**, if you couldn't publish them yourself.
+- **What you wrote** — flows, surfaces, and prototypes by name, with paths.
+- **Prototype paths** — every prototype, which one is primary, and the round it's synced to, so the product-lead can put the primary one in the package index.
+- **Prototypes awaiting update**, if you couldn't sync them this round.
 - **Missing requirements** — states and behaviors the PRD doesn't cover (what happens when the list is empty, when the user lacks permission, when the upstream is slow), stated as requirement text with a suggested area and priority. This is usually the most valuable thing you return.
 - **Open questions** — phrased as decisions with your recommendation. Conflicts between an existing design file, the code, and the PRD go here.
 - **Interactions the architecture may not support**, for the architect via the product-lead.

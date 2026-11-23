@@ -91,7 +91,9 @@ The ux-designer builds prototypes for surfaces where layout or interaction is th
 
 Claude Design canvases, which the Claude Code version could draft, have no OpenCode equivalent; a profile that says `claude-design` is treated as `html`.
 
-`ux.md` always carries the flows, states table and text wireframes, whatever the mode — it's what engineering and QA read. The product lead records each prototype's path in the package index.
+`ux.md` always carries the flows, states table and text wireframes, whatever the mode — it's what engineering and QA read.
+
+**Every prototype is listed in the package.** `ux.md`'s *Prototypes* table lists each prototype with its `ux/` path, the surfaces and states it shows, and the round it's synced to; each surface in the inventory points at its prototype. The primary one also goes in the package index's **Prototype** row. When a decision changes a surface, the prototype is updated in place rather than recreated. `check-package.mjs --local-prototypes` fails a package with a missing or stale prototype, or whose index names a different prototype than `ux.md` makes primary. The review page doesn't include the prototypes, so send the `ux/` files along with it.
 
 `init-design` also takes stock of the design systems that already exist — the repo's tokens and component library, Figma libraries — and records the relevant ones, and which is canonical, in `design.md`. The ux-designer reads them before designing, applies the canonical tokens even to HTML prototypes, and extends existing Figma frames and components rather than approximating them.
 
