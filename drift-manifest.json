@@ -20,7 +20,7 @@
     "plugins/engineering-team/templates/qa/runs/.gitignore": "49ce595025de8f01a7e0f8f08f399adcfb41439a3bb785dd45bcde7489cc42a4",
     "plugins/engineering-team/templates/qa/runs/_artifacts/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "plugins/engineering-team/templates/qa/scripts/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "plugins/engineering-team/templates/team/project.md": "cd000064e33e6f82a9e0c9285c3af9f9e4031fbaa4c437ad35175c3b2d9986f2",
+    "plugins/engineering-team/templates/team/project.md": "b9b21b4ed07ecaa1217e08f8e45ebe93a5c23368f30cda1983db48d936a89642",
     "plugins/team-ops/scripts/otlp.mjs": "f4b1b0e061f6452d79f5279a1945896a6718a635d9ce7b90618f85dedb81a508",
     "plugins/team-ops/telemetry/stack/docker-compose.yml": "b814062c6c6dee1f4397df6bfd5ebfd98633f2146dfa9af9af170b7d84c3809b",
     "plugins/team-ops/telemetry/stack/grafana/dashboards/agent-teams.json": "258d924a8370ccc281f54da5cc301d433ed00ac0bda950a1979416d97cb83f3a",

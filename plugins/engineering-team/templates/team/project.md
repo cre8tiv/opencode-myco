@@ -52,8 +52,11 @@ while any of it is unaddressed.
 | -------- | ------------------ | --------------- | -------------------------- | ------ |
 | <e.g. CodeRabbit> | <on PR open / on push / on comment> | <~2 min> | <yes / no> | <e.g. only PRs based on main; skips PRs over 150 files; Free plan — summaries only> |
 
-- **How to see their feedback:** <e.g. `gh pr view <n> --json reviews,comments`, or the PR page>
+- **How to see their feedback:** <e.g. `gh pr view <n> --json reviews,comments`, or the PR page. Say whether findings arrive as inline review threads, as one summary comment, or both, and any marker that identifies a bot's comment, such as an HTML comment>. Inline threads need the GraphQL API (`gh api graphql`, `reviewThreads`); `gh pr view` doesn't show them or whether they're resolved.
+- **How to ask for a re-review:** <e.g. comment `@claude review <sha>`, or "re-runs on every push">
 - **How to mark a comment addressed:** <reply in thread / resolve the thread / a keyword the bot recognizes>
+- **Who resolves bot threads:** <the tech lead, after replying with the fix commit or the reason it was declined. Never a human reviewer's thread.>
+- **Conventions the bots enforce:** <repo rules and sweep patterns that bots flag, so ICs check them before pushing, e.g. `AGENTS.md` bans, or a regex a bot quotes>
 - **Known noise:** <findings this tool reliably gets wrong on this codebase, so nobody re-litigates them every PR>
 
 If this repo has no automated PR reviewers, say so here and the team will skip the step.

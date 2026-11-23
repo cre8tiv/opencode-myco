@@ -59,6 +59,8 @@ If they choose `autonomous`, still agree an **escalation list** — the change t
 
 Show what you detected and confirm it, rather than asking from scratch. A review app installed across a whole account or organization may not have reviewed any PR you sampled — it may skip PRs based on a branch other than the trunk, or above a size limit, or be on a plan that only summarizes — so ask directly whether any review apps are installed beyond the ones you found. For each bot, record its **limits**: which base branches it reviews, size caps, and what its plan does and doesn't do. Without them, a skipped PR looks like a stuck bot. What you can't detect and should ask: how a comment is marked addressed on this repo (reply, resolve the thread, a keyword the tool recognizes), and whether any of them reliably produce **known noise** on this codebase — findings that are always wrong here. That last answer saves the reviewer re-litigating the same false positive on every PR, so it's worth asking even though it feels like an odd question.
 
+For each bot also settle how its feedback arrives (inline threads, a summary comment, or both, and any marker in the comment), how to ask it for a re-review, and which repo conventions it enforces. Then check the team can act on it: run `gh api graphql` for one recent PR's `reviewThreads` (read and `isResolved`) and confirm the account the agents use can resolve a thread, since `gh pr view` shows neither. If it can't, say so, because the tech lead's loop depends on it. Record all of this in *External PR review*.
+
 When the user corrects a detection, take the correction and don't re-litigate it.
 
 ### Knowledge sources
