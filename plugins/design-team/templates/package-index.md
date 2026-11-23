@@ -14,6 +14,7 @@ This becomes `docs/design/<slug>/README.md`: the first file anyone opens, and th
 | **Last updated** | <date> |
 | **Adopted from** | <source link, its version or date, and when it was fetched — or "new"> |
 | **Review page** | <claude.ai artifact link, once published — or "not published"> |
+| **Prototype** | <the primary prototype's `ux/` path — the first row of `ux.md`'s Prototypes table — or "none"> |
 
 <One paragraph: what this is and why, from the PRD's problem and positioning.>
 ```
@@ -30,7 +31,7 @@ Table with columns `Document | Author | Status | Open questions`. List only the 
 | [Tech design](tech-design.md) | tech-designer | | |
 | [UX](ux.md) | ux-designer | | |
 
-**Prototypes:** one line per prototype — surface, link or `ux/` path, and whether it has been published.
+**Prototypes:** see the Prototypes section of [UX](ux.md), which lists every prototype with its `ux/` path, the surfaces it shows and the round it's synced to. The header's **Prototype** row carries the primary one.
 
 **Published copies:** one line per destination — where, link, date, and the version published.
 
@@ -47,6 +48,7 @@ The product lead checks each item before setting status to **Ready for engineeri
 - [ ] Every P0 and P1 requirement appears in the tech design's traceability table.
 - [ ] Every `SEC-n` control is a PRD requirement and appears in the tech design's traceability table.
 - [ ] Every user-facing P0 requirement is covered by a UX flow, and every surface has its states defined. *(N/A without UX.)*
+- [ ] Every prototype is in the package under `ux/`, listed in `ux.md`'s Prototypes table with its path, and synced to the latest round; the primary one is in the header's **Prototype** row. *(N/A without UX, or with `ux_prototypes: wireframes`.)*
 - [ ] Every ADR that constrains implementation is referenced from the tech design.
 - [ ] No document contradicts a D-decision.
 - [ ] Every dependency between delivery slices has a seam in the tech design, with failure and concurrency behavior.
