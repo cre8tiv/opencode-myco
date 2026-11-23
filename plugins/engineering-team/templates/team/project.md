@@ -30,6 +30,9 @@ knows this makes better judgment calls than one that only knows the file tree.>
 - **Workflow states:** in progress = `<state>`, in review = `<state>`, QA/validation = `<state or "none — stay in review">`, done = `<state>`
 - **Acceptance criteria live in:** <field name/ID, or "the description">
 - **Validation instructions go in:** <field name/ID, or "a ticket comment">
+- **Technical / Solution Description fields:** <field name/ID of each, or "none">
+- **Fields that lock:** <which fields stop being editable after which transition, e.g. "Technical Description is not on the edit screen after Ready for Review". The tech lead posts a developer-notes comment instead once a field has locked.>
+- **Markup limits:** <what each long-text field renders, e.g. "Validation Instructions flattens tables and nested lists: flat bullets and numbered lists only". Say "full Markdown" if there are none.>
 - **Other required fields on create:** <field: expected format, or "none">
 
 If this project has no tracker, say so here and the agents will skip all ticket
@@ -41,6 +44,7 @@ transitions and report status only to the lead.
 - **Branch pattern:** <e.g. feature/<TICKET>-short-description>
 - **PR tool:** <gh | az repos | web UI>
 - **Commit convention:** <e.g. conventional commits, or "none">
+- **Writing style for PR and ticket text:** <e.g. "ASD-STE100 Simplified Technical English", or "plain short sentences" (the default)>
 
 ## External PR review
 

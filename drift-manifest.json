@@ -1,7 +1,7 @@
 {
   "upstream": {
     "url": "https://github.com/cre8tiv/myco.git",
-    "commit": "275fd41c771f8cfe095bf244be0fce51c6d6bec6"
+    "commit": "3cc632a3cc87c952b005b13760baf6b839d52668"
   },
   "files": {
     "plugins/design-team/scripts/check-package.mjs": "a145346a8f5597f414eda7ff475de8b7fa2ddb8ac81ec51a18046d3d3ac09127",
@@ -20,7 +20,7 @@
     "plugins/engineering-team/templates/qa/runs/.gitignore": "49ce595025de8f01a7e0f8f08f399adcfb41439a3bb785dd45bcde7489cc42a4",
     "plugins/engineering-team/templates/qa/runs/_artifacts/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "plugins/engineering-team/templates/qa/scripts/.gitkeep": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "plugins/engineering-team/templates/team/project.md": "b9b21b4ed07ecaa1217e08f8e45ebe93a5c23368f30cda1983db48d936a89642",
+    "plugins/engineering-team/templates/team/project.md": "bfa5ff607636c2306a535da7a76eceb403d0ca099ec2b696ec1d8c57a26b4cfd",
     "plugins/team-ops/scripts/otlp.mjs": "f4b1b0e061f6452d79f5279a1945896a6718a635d9ce7b90618f85dedb81a508",
     "plugins/team-ops/telemetry/stack/docker-compose.yml": "b814062c6c6dee1f4397df6bfd5ebfd98633f2146dfa9af9af170b7d84c3809b",
     "plugins/team-ops/telemetry/stack/grafana/dashboards/agent-teams.json": "258d924a8370ccc281f54da5cc301d433ed00ac0bda950a1979416d97cb83f3a",
@@ -38,6 +38,7 @@
     "plugins/engineering-team/scripts/profile.mjs": "The project files moved to .myco/ off Claude Code's directory (and the stream to ~/.local/share/myco/ops): this fork is OpenCode-only.",
     "plugins/engineering-team/templates/qa/README.md": "The project files moved to .myco/ off Claude Code's directory (and the stream to ~/.local/share/myco/ops): this fork is OpenCode-only.",
     "plugins/team-ops/scripts/profile.mjs": "The project files moved to .myco/ off Claude Code's directory (and the stream to ~/.local/share/myco/ops): this fork is OpenCode-only.",
-    "plugins/team-ops/templates/knowledge.md": "The project files moved to .myco/ off Claude Code's directory (and the stream to ~/.local/share/myco/ops): this fork is OpenCode-only."
+    "plugins/team-ops/templates/knowledge.md": "The project files moved to .myco/ off Claude Code's directory (and the stream to ~/.local/share/myco/ops): this fork is OpenCode-only.",
+    "plugins/engineering-team/templates/pr-description.md": "The project files moved to .myco/ off Claude Code's directory, and the template carries no Claude Code attribution line: this fork is OpenCode-only."
   }
 }
