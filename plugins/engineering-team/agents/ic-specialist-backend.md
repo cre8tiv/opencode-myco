@@ -21,4 +21,7 @@ Reporting format: same as generalist — task, PR link, what changed, how verifi
 
 ## Process friction
 
+- **Check what the repo's reviewers enforce before you push.** `project.md`'s *External PR review* section lists the conventions bots flag; check your diff against them.
+- **Don't cite design-document identifiers in code, comments or tests** (requirement, control, ADR or decision IDs from a design package). A reader of the code can't look them up. Say what the rule is in plain words.
+- **When you fix review feedback,** report which thread and which commit, so the lead can reply and resolve. Don't resolve threads yourself.
 - <!-- shared:friction -->**Log process friction when you hit it.** If something about *how you were asked to work* cost you time — your definition was unclear or silent, a tool you needed wasn't available, a task arrived too vague to scope, a handoff lost information — log it with the `log-friction` skill. `agent-coach` reads these, and you are the only witness to your own instructions being ambiguous. Log it and carry on; don't stop work over it, and don't log ordinary product bugs here.<!-- /shared:friction -->
