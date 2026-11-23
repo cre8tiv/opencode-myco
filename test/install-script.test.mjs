@@ -111,6 +111,9 @@ const PWSH = has('pwsh', ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.M
 
 describe('install.ps1', { skip: !PWSH }, () => {
   const run = (sb, ...args) => spawnSync(/** @type {string} */ (PWSH), ['-NoProfile', '-NonInteractive', '-File', join(ROOT, 'install.ps1'), ...args], { encoding: 'utf8', env: env(sb) });
+  // PowerShell's error view colors a thrown message and wraps it at the console width, continuing
+  // each line after "|", so a long message (one naming a deep temp path) splits mid-phrase. Undo both.
+  const unwrap = (text) => text.replace(/\x1b\[[0-9;]*m/g, '').replace(/\s*\n\s*\|\s*/g, ' ').replace(/\s+/g, ' ');
 
   test('installs, and a second run updates in place', (t) => {
     const sb = sandbox(t);
@@ -139,7 +142,7 @@ describe('install.ps1', { skip: !PWSH }, () => {
     const sb = sandbox(t);
     const r = run(sb, '-Ref', 'no-such-ref', '-Target', join(sb.root, 'out'));
     assert.notEqual(r.status, 0);
-    assert.match(r.stderr + r.stdout, /could not fetch 'no-such-ref'/);
+    assert.match(unwrap(r.stderr + r.stdout), /could not fetch 'no-such-ref'/);
     assert.ok(!existsSync(join(sb.root, 'out', 'myco')));
   });
 
@@ -149,6 +152,6 @@ describe('install.ps1', { skip: !PWSH }, () => {
     writeFileSync(join(sb.root, 'src', 'precious.txt'), 'mine');
     const r = run(sb, '-Ref', 'HEAD', '-Target', join(sb.root, 'out'));
     assert.notEqual(r.status, 0);
-    assert.match(r.stderr + r.stdout, /is not a myco checkout/);
+    assert.match(unwrap(r.stderr + r.stdout), /is not a myco checkout/);
   });
 });
