@@ -27,6 +27,8 @@ Work out as much as possible from the repo, and note your confidence in each:
 ## 2. Discover tracker fields rather than asking for IDs
 
 If the project uses a tracker with an MCP server available, look the fields up instead of asking the user to know internal field IDs. For Jira, fetch the create/edit field metadata for the project's issue types and find the fields whose names correspond to acceptance criteria and to validation or QA instructions; record both the human name and the `customfield_NNNNN` ID, because agents need the ID and humans need the name. Note any field the create API demands and the format it wants — that detail is exactly what costs someone an afternoon later.
+Also find the long-text fields the agents will write: validation instructions and, if the project has them, a technical or solution description. For each, record which transition makes it uneditable and what markup it renders — a converter that flattens tables or nested lists means agents must write that field as flat lists only. Check by reading an existing ticket's field as the tracker returns it, or ask. Record these in *Ticket system* so the tech lead doesn't write a table a human then sees as a run-on line, or a description that can't be corrected after review.
+
 
 If no tracker MCP is available, don't fake it. Record `ticket_system: none` and note that agents should skip ticket transitions and report to the lead only.
 
@@ -37,6 +39,7 @@ Use `question` for what you couldn't infer, batching related questions. Realisti
 - **How QA should exercise this software**, if the project type is ambiguous or mixed. This is the highest-value question in the whole interview: it determines whether QA drives a browser, probes an API, runs a CLI, writes a consumer harness, or runs migrations against a realistic dataset. Get it wrong and every QA run is theater.
 - **Ephemeral/preview environments** — do they exist, how is one created, how is one reset? If the project has a skill or script for this, name it.
 - **Workflow state names**, if the tracker exposes several and the mapping isn't obvious.
+- **Writing style for PR and ticket text**, only if the team has a house standard (a controlled language such as ASD-STE100, a length limit, a required template). Otherwise leave the default: plain short sentences.
 - **The stream slug** — propose the repo name; it only needs confirming.
 - **How many agents may run at once** (`max_parallel_agents`). Each parallel IC or QA run is a git worktree with its own dependency install and test run. Check the machine's memory and how heavy one install-and-test cycle is in this project, and propose a number; 3 is a safe default for a typical project on a 32 GB machine.
 - **Prerequisites to run locally** that aren't in the repo: required services, env vars, seed data, credentials. Ask what's needed, never for the secret values themselves.

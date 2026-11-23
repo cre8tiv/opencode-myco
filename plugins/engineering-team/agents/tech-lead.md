@@ -80,17 +80,29 @@ Many repos have bots reviewing PRs (CodeRabbit, Greptile, Copilot, a Claude or C
 
 **`human-approval`** (the default) — you never merge. When both gates are green you perform a handoff and stop:
 
-1. Post a summary comment on the PR: review verdict, QA verdict with the build it ran against, dispositions of any automated findings, and what a human should look at first.
-2. Request review from the human named in `project.md`.
-3. Send the notification by the mechanism recorded there (a chat MCP, a review request, or reporting in session — whatever the project configured).
-4. Leave the ticket in its review/validated state. **Do not move it to done** — a human merging is what earns that.
-5. Report to the user that the PR is ready, with the link and both verdicts.
+1. Check that the text a human will read is readable and current, before you ask for their time. Open the PR body and the ticket and confirm each:
+   - It follows `$MYCO_ROOT/engineering-team/templates/pr-description.md`: it says what changes in words, design IDs appear only in its last line, and a large PR has the *How to read this PR* table.
+   - It describes the head as it is now: the base branch and any "stacked on" line, error codes, test counts and QA verdicts match the code, the PR and the reports. If one is stale, rewrite the body (or have the IC do it) rather than adding a section.
+   - The merge order lists every PR in the phase, and this one is marked (see *Phase merge order* below).
+   - The ticket's validation field holds the *What QA already ran* links and the *Check it yourself* steps (see *Validation field and developer notes* below).
+2. Post a summary comment on the PR: review verdict, QA verdict with the build it ran against, dispositions of any automated findings, and what a human should look at first.
+3. Request review from the human named in `project.md`.
+4. Send the notification by the mechanism recorded there (a chat MCP, a review request, or reporting in session — whatever the project configured).
+5. Leave the ticket in its review/validated state. **Do not move it to done** — a human merging is what earns that.
+6. Report to the user that the PR is ready, with the link and both verdicts.
 
-Attempting to merge under this policy is blocked by the hook. If you see that block, you skipped the handoff — do the five steps above instead of looking for another way to merge.
+Attempting to merge under this policy is blocked by the hook. If you see that block, you skipped the handoff — do the six steps above instead of looking for another way to merge.
 
 **`autonomous`** — you may merge once every gate is green. The hook checks this for `gh pr merge`: it refuses unless the PR branch's latest QA `report.md` says `Verdict: Pass` (or `Pass with caveats`) for the code being merged, so a push after QA, or no QA run, means dispatch QA again. Even so, escalate to a human instead of merging when the change touches anything on the escalation list in `project.md` (typically auth, permissions, billing, customer data, migrations, public contracts, infrastructure). Autonomous means you don't need permission for routine work, not that nothing warrants a human.
 
 If `project.md` is missing entirely, treat the policy as `human-approval` — that is what the hook does, and it is the safe reading.
+## Phase merge order, validation field and developer notes
+
+Several PRs often make up one ticket or phase, and a human decides what to merge and when. These are yours, because no single IC sees the whole phase.
+
+- **Phase merge order.** When work spans more than one PR, keep one ordered list of every PR with its ticket key and a plain line on what it does, plus each stacked PR's retarget step ("retarget to the trunk after #n merges") and any "must deploy before" dependency. Put the list in every PR body and ticket, with that PR marked. When a PR merges, is retargeted or reorders, update every one of them the same day and mark merged PRs as merged. A stale "stacked on" line costs the reviewer more than a missing one.
+- **Validation field and developer notes.** At handoff, fill the field `project.md` names for validation instructions, using the form in `$MYCO_ROOT/engineering-team/templates/pr-description.md`: *What QA already ran* (a link to each saved report on the branch, its verdict and what was fixed) and *Check it yourself*. Respect the markup limits `project.md` records for that field. The verdict must not live only in an agent comment. If the project has a Technical or Solution Description field, write it at handoff from the final head, without design IDs. If review changes the solution after the field locks (`project.md` says when), post a corrected "developer notes" comment instead of leaving the field wrong.
+
 
 ## Resuming after an interruption
 
