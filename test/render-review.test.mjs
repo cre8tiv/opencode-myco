@@ -6,6 +6,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import vm from 'node:vm';
 import { sandbox, runNode, script } from './helpers.mjs';
 
 const RENDER = script('design-team', 'render-review.mjs');
@@ -190,8 +191,8 @@ describe('markdown fidelity', () => {
     assert.match(body, /<th>ID<\/th><th>Requirement<\/th><th>Phase<\/th>/);
     assert.match(body, /<code>a \\\| b<\/code>|<code>a \| b<\/code>/);
     // The short row is padded to the header's width rather than breaking the table.
-    assert.equal((body.match(/<tr><td>/g) || []).length, 2);
-    assert.match(body, /<tr><td><span class="id">APR-2<\/span><\/td><td>only two cells<\/td><td><\/td><\/tr>/);
+    assert.equal((body.match(/<tr[^>]*><td>/g) || []).length, 2);
+    assert.match(body, /<tr id="prd-id-apr-2"><td><span class="id" title="only two cells">APR-2<\/span><\/td><td>only two cells<\/td><td><\/td><\/tr>/);
   });
 
   test('task lists show done and not-done', async (t) => {
@@ -237,6 +238,68 @@ describe('design IDs', () => {
     for (const id of ['APR-3', 'SEC-2', 'T-4', 'ADR-7', 'D-12', 'A-2']) assert.match(body, new RegExp(`<span class="id">${id}</span>`), id);
   });
 
+  test('an ID defined in a table shows its definition and links to its row, from any document', async (t) => {
+    const sb = sandbox(t);
+    const html = await render(sb, pkg(sb, {
+      'prd.md': ['## Actors', '', '| ID | Actor | Context |', '| --- | --- | --- |', '| A-1 | IT operations admin | Rotates credentials in the Admin UI |', '', '## Scenarios', '', '| ID | Actor | What happens |', '| --- | --- | --- |', '| SC-1 | A-1 | Rotates a Salesforce credential while disabled |'].join('\n'),
+      'tech-design.md': 'Slice S3 covers SC-1 for A-1 and also NOPE-9.',
+    }));
+    const prd = html.match(/<section class="doc" id="prd">[\s\S]*?<\/section>/)[0];
+    const tech = html.match(/<section class="doc" id="tech-design">[\s\S]*?<\/section>/)[0];
+    // The defining row carries the anchor, and its own ID doesn't link to itself.
+    assert.match(prd, /<tr id="prd-id-a-1"><td><span class="id" title="IT operations admin — Rotates credentials in the Admin UI">A-1<\/span>/);
+    // A later document's chip links to it and carries the same words, in any document.
+    assert.match(tech, /<a class="id" href="#prd-id-sc-1" title="A-1 — Rotates a Salesforce credential while disabled">SC-1<\/a>/);
+    assert.match(tech, /<a class="id" href="#prd-id-a-1" title="IT operations admin[^"]*">A-1<\/a>/);
+    // An ID nothing defines stays a plain chip.
+    assert.match(tech, /<span class="id">NOPE-9<\/span>/);
+  });
+
+  test('an ID inside a link stays a chip, because links can\'t nest', async (t) => {
+    const sb = sandbox(t);
+    const body = await renderDoc(sb, ['| ID | Requirement |', '| --- | --- |', '| CFR-76 | The request |', '', 'See [ticket CFR-76](https://example.com/CFR-76).'].join('\n'));
+    assert.match(body, /<a href="https:\/\/example\.com\/CFR-76"[^>]*>ticket <span class="id" title="The request">CFR-76<\/span><\/a>/);
+  });
+
+  test('headings and bold lead-ins define IDs too', async (t) => {
+    const sb = sandbox(t);
+    const body = await renderDoc(sb, ['### ADR-1: Put a release gate over every release point', '', '> **SC-2 — Pause for maintenance** (A-1)', '> Disable on Saturday, enable on Sunday.', '', 'Both ADR-1 and SC-2 matter.'].join('\n'));
+    assert.match(body, /<a class="id" href="#prd-adr-1-put-a-release-gate-over-every-release-point" title="Put a release gate over every release point">ADR-1<\/a>/);
+    assert.match(body, /<p id="prd-id-sc-2"><strong>.*SC-2.* — Pause for maintenance<\/strong>/);
+    assert.match(body, /<a class="id" href="#prd-id-sc-2" title="Pause for maintenance">SC-2<\/a>/);
+  });
+
+  test('a risk led into its first cell defines its ID', async (t) => {
+    const sb = sandbox(t);
+    const body = await renderDoc(sb, ['| Risk | Mitigation |', '| --- | --- |', '| **Accepted risk:** R-01: running queries finish | Log it |', '', 'See R-01.'].join('\n'));
+    assert.match(body, /<tr id="prd-id-r-01">/);
+    assert.match(body, /<a class="id" href="#prd-id-r-01" title="running queries finish">R-01<\/a>/);
+  });
+
+  test('a definition is escaped, since it comes from text people and agents edit', async (t) => {
+    const sb = sandbox(t);
+    const body = await renderDoc(sb, ['| ID | Requirement |', '| --- | --- |', '| X-1 | a "quoted" <b>bold</b> & more |', '', 'See X-1.'].join('\n'));
+    assert.match(body, /title="a &quot;quoted&quot; &lt;b&gt;bold&lt;\/b&gt; &amp; more"/);
+    assert.equal(body.includes('<b>'), false);
+  });
+
+  test('a key explains each prefix in use, naming areas from headings and falling back to the usual meaning', async (t) => {
+    const sb = sandbox(t);
+    const html = await render(sb, pkg(sb, {
+      'prd.md': ['#### Enforcement on every surface (ENF)', '', '| ID | Requirement | Actor | Priority |', '| --- | --- | --- | --- |', '| ENF-1 | Every surface refuses a disabled connection | A-3 | P0 |', '| ENF-2 | Another one | A-3 | P0 |', '', '| ID | Actor | Context |', '| --- | --- | --- |', '| A-3 | Query user | Queries from a BI tool |'].join('\n'),
+    }));
+    const key = html.match(/<details class="key">[\s\S]*?<\/details>/)[0];
+    assert.match(key, /What do codes like/);
+    assert.match(key, /<td><code>ENF-n<\/code><\/td><td>Enforcement on every surface<\/td><td>2<\/td>/);
+    assert.match(key, /<td><code>A-n<\/code><\/td><td>Actors<\/td><td>1<\/td>/);
+  });
+
+  test('there is no key when the package defines no IDs', async (t) => {
+    const sb = sandbox(t);
+    const html = await render(sb, pkg(sb, { 'prd.md': 'Plain text, and SEC-2 with no definition anywhere.' }));
+    assert.equal(html.includes('class="key"'), false);
+  });
+
   test('standard names that look like IDs are left alone', async (t) => {
     const sb = sandbox(t);
     const body = await renderDoc(sb, 'Uses UTF-8, SHA-256, TLS-1 and ISO-8601 with RFC-7519 tokens.');
@@ -275,6 +338,143 @@ describe('links', () => {
   });
 });
 
+describe('YAML front matter', () => {
+  const FRONT = ['---', 'type: design', 'title: LLM Gateway semantic routing — UX', 'description: >', '  How a user sets up routing.', 'resource: initiatives/ai-gateway-llm-advanced-routing', 'tags: [ux, routing]', 'timestamp: 2026-11-10', '---', '', ''].join('\n');
+  /** Page text with tags removed. @param {string} html */
+  const text = (html) => html.replace(/<[^>]+>/g, ' ');
+
+  test('is not rendered on the page, in the Overview or any document', async (t) => {
+    // Regression: every document in a real package began with this block, and it showed as a paragraph (7 times).
+    const sb = sandbox(t);
+    const docs = Object.fromEntries(['review.md', 'prd.md', 'architecture.md', 'security-review.md', 'tech-design.md', 'ux.md'].map((f) => [f, `${FRONT}## Section in ${f}\n\nBody.\n`]));
+    const html = await render(sb, pkg(sb, { ...docs, 'README.md': `${FRONT}${README}` }));
+    assert.equal((text(html).match(/resource: initiatives|type: design/g) || []).length, 0);
+    for (const f of Object.keys(docs)) assert.ok(html.includes(`Section in ${f}`), f);
+    assert.match(html, /<h1>Order exceptions<\/h1>/);
+  });
+
+  test('only a block at the very start counts; a later --- is still a rule', async (t) => {
+    const sb = sandbox(t);
+    const body = await renderDoc(sb, `${FRONT}Intro.\n\n---\n\nAfter the rule.\n`);
+    assert.doesNotMatch(body, /type: design/);
+    assert.match(body, /<p>Intro\.<\/p>/);
+    assert.match(body, /<hr>/);
+    assert.match(body, /After the rule\./);
+  });
+
+  test('a document that opens with a rule and never closes it keeps its text', async (t) => {
+    const sb = sandbox(t);
+    const body = await renderDoc(sb, '---\n\nNo front matter here.\n');
+    assert.match(body, /No front matter here\./);
+  });
+
+  test('Windows line endings and a byte-order mark are handled', async (t) => {
+    const sb = sandbox(t);
+    const body = await renderDoc(sb, `﻿${FRONT}Body text.\n`.replace(/\n/g, '\r\n'));
+    assert.doesNotMatch(body, /type: design/);
+    assert.match(body, /Body text\./);
+  });
+});
+
+describe('the light/dark toggle', () => {
+  /** The inline scripts in a page, in order. @param {string} html */
+  const scripts = (html) => [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+
+  /**
+   * Runs the page's theme scripts against a minimal DOM and returns handles to it.
+   * @param {string} html @param {{stored?: string, systemDark?: boolean, storageThrows?: boolean}} env
+   */
+  function boot(html, { stored = null, systemDark = false, storageThrows = false } = {}) {
+    const attrs = {};
+    const root = { getAttribute: (k) => attrs[k] ?? null, setAttribute: (k, v) => { attrs[k] = v; } };
+    let onClick = null;
+    const btn = { hidden: true, textContent: '', attributes: {}, setAttribute(k, v) { this.attributes[k] = v; }, addEventListener: (_, f) => { onClick = f; } };
+    const store = { value: stored };
+    const localStorage = {
+      getItem: () => { if (storageThrows) throw new Error('blocked'); return store.value; },
+      setItem: (_, v) => { if (storageThrows) throw new Error('blocked'); store.value = v; },
+    };
+    const sandboxGlobals = {
+      document: { documentElement: root, querySelector: (s) => (s === '.theme-toggle' ? btn : null), querySelectorAll: () => [] },
+      window: { matchMedia: () => ({ matches: systemDark, addEventListener() {} }) },
+      localStorage,
+    };
+    const theme = scripts(html).filter((s) => s.includes('theme'));
+    assert.equal(theme.length, 2, 'expected a boot script and a toggle script');
+    for (const s of theme) vm.runInNewContext(s, sandboxGlobals);
+    return { attrs, btn, store, click: () => onClick() };
+  }
+
+  test('both the package page and the hub get the button, hidden until the script wires it', async (t) => {
+    const sb = sandbox(t);
+    const page = await render(sb, pkg(sb));
+    assert.match(page, /<button type="button" class="theme-toggle" hidden><\/button>/);
+    const hubDir = join(sb.root, 'docs', 'design');
+    const out = join(sb.root, 'hub.html');
+    const r = await runNode(RENDER, { args: ['hub', '--dir', hubDir, '--title', 'Hub', '--out', out], cwd: sb.root, env: sb.env });
+    assert.equal(r.status, 0, r.stderr);
+    const hubHtml = readFileSync(out, 'utf8');
+    assert.match(hubHtml, /class="theme-toggle" hidden/);
+    assert.equal(scripts(hubHtml).filter((s) => s.includes('theme')).length, 2);
+  });
+
+  test('the stylesheet answers both the system setting and an explicit choice', async (t) => {
+    const sb = sandbox(t);
+    const page = await render(sb, pkg(sb));
+    assert.match(page, /@media \(prefers-color-scheme: dark\) \{ :root:not\(\[data-theme="light"\]\)/);
+    assert.match(page, /:root\[data-theme="dark"\] \{/);
+  });
+
+  test('clicking flips from the system theme and remembers the choice', async (t) => {
+    const sb = sandbox(t);
+    const page = await render(sb, pkg(sb));
+    const ui = boot(page, { systemDark: false });
+    assert.equal(ui.btn.hidden, false);
+    assert.equal(ui.attrs['data-theme'], undefined);
+    assert.equal(ui.btn.attributes['aria-label'], 'Switch to dark mode');
+    ui.click();
+    assert.equal(ui.attrs['data-theme'], 'dark');
+    assert.equal(ui.store.value, 'dark');
+    assert.equal(ui.btn.attributes['aria-label'], 'Switch to light mode');
+    ui.click();
+    assert.equal(ui.attrs['data-theme'], 'light');
+  });
+
+  test('a remembered choice applies on load and beats the system setting', async (t) => {
+    const sb = sandbox(t);
+    const ui = boot(await render(sb, pkg(sb)), { stored: 'light', systemDark: true });
+    assert.equal(ui.attrs['data-theme'], 'light');
+    assert.equal(ui.btn.attributes['aria-label'], 'Switch to dark mode');
+  });
+
+  test('blocked storage still toggles, and a junk stored value is ignored', async (t) => {
+    const sb = sandbox(t);
+    const page = await render(sb, pkg(sb));
+    const blocked = boot(page, { storageThrows: true });
+    blocked.click();
+    assert.equal(blocked.attrs['data-theme'], 'dark');
+    assert.equal(boot(page, { stored: '"><img onerror=alert(1)>' }).attrs['data-theme'], undefined);
+  });
+});
+
+describe('the prototype link', () => {
+  test('the page header links the index\'s Prototype row, and leaves it out when there is none', async (t) => {
+    const sb = sandbox(t);
+    const withProto = README.replace('| **Review page** |', '| **Prototype** | [canvas](https://claude.ai/artifact/canvas1) |\n| **Review page** |');
+    const html = await render(sb, pkg(sb, { 'README.md': withProto }));
+    assert.match(html, /<div class="facts">.*<a href="https:\/\/claude\.ai\/artifact\/canvas1" target="_blank" rel="noopener">Open prototype<\/a>/);
+    const sb2 = sandbox(t);
+    assert.doesNotMatch(await render(sb2, pkg(sb2)), /Open prototype/);
+  });
+
+  test('a Prototype row that is not a URL never becomes a link', async (t) => {
+    const sb = sandbox(t);
+    const bad = README.replace('| **Review page** |', '| **Prototype** | javascript:alert(1) "><b>x</b> |\n| **Review page** |');
+    const html = await render(sb, pkg(sb, { 'README.md': bad }));
+    assert.doesNotMatch(html, /Open prototype|href="javascript:/i);
+  });
+});
+
 describe('the design hub', () => {
   const hubPackage = (sb, slug, readme) => {
     const dir = join(sb.root, 'docs', 'design', slug);
@@ -303,6 +503,16 @@ describe('the design hub', () => {
     assert.equal((html.match(/Not published/g) || []).length, 1);
     assert.match(html, /<b>3<\/b> packages/);
     assert.match(html, /<h1>Acme designs<\/h1>/);
+  });
+
+  test('links each package\'s primary prototype from its Prototype row', async (t) => {
+    const sb = sandbox(t);
+    hubPackage(sb, 'with', `${header('With canvas', 'In review', '2026-10-09', '[open](https://claude.ai/artifact/rev)')}\n| **Prototype** | [canvas](https://claude.ai/artifact/canvas1) |`);
+    hubPackage(sb, 'without', header('No prototype', 'Draft', '2026-10-01', '—'));
+    const html = await hub(sb);
+    assert.match(html, /<th>Prototype<\/th>/);
+    assert.match(html, /<a href="https:\/\/claude\.ai\/artifact\/canvas1" target="_blank" rel="noopener">Open prototype<\/a>/);
+    assert.equal((html.match(/Open prototype/g) || []).length, 1);
   });
 
   test('ignores directories that are not packages, and says so when there are none', async (t) => {

@@ -68,7 +68,7 @@ Table with columns `Round | Published | Commit | Threads (new / addressed / stil
 
 Written for the engineering tech lead. It will turn this into tickets; don't pre-empt that by writing them here.
 
-- **Build first:** the phase and requirement IDs that make up the first deliverable, and why they come first.
+- **Build first:** the phase and requirement IDs that make up the first deliverable, and why they come first. Name each group of IDs by what it covers ("enforcement, ENF-1 to ENF-14"), since a reader of the index may not know the prefixes.
 - **Suggested slices:** a pointer to the tech design's delivery slices.
 - **Work in other repositories:** slices that change a repository other than this one, and who builds them. The tech lead in this repository builds only what lands here; the rest is handed over with the same package. Write "None" if everything lands here.
 - **Constraints to honor:** the ADRs and `SEC-n` controls that are non-negotiable, by ID.

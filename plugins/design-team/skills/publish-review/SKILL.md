@@ -20,7 +20,7 @@ A design package is written for engineering: precise, cross-referenced, and long
 
 1. **Re-read every document in the package**, in full. The human may have edited any of them since you last did.
 
-2. **Write or update `review.md`** in the package from `$MYCO_ROOT/design-team/templates/review-summary.md`. This is the Overview reviewers read first. Write it for someone who hasn't opened the package, link to the documents rather than restating them, and make *What we want feedback on* specific: questions naming who is best placed to answer.
+2. **Write or update `review.md`** in the package from `$MYCO_ROOT/design-team/templates/review-summary.md`. This is the Overview reviewers read first. Write it for someone who hasn't opened the package, who doesn't know what the IDs mean: plain words first, the ID after it as a reference, ranges named by what they cover, as the template says. Link to the documents rather than restating them, and make *What we want feedback on* specific: questions naming who is best placed to answer.
 
 3. **Commit, then render.** Commit the package (by path, never `git add -A`) so the page can name the commit it was rendered from, then:
 

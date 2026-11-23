@@ -77,6 +77,8 @@ The package is written for engineering. For people, the product lead can render 
 - **Feedback comes back through you.** When you tell the product lead what reviewers said, it sorts each point into a decision, a correction, something already decided, or out of scope, then puts them to you as a decision round. A comment is a proposal: nothing changes until you decide it.
 - **A snapshot.** The file names the commit it was rendered from and goes stale when the package changes; the lead re-renders after each round.
 - **The design hub.** On request the lead renders `<product> design packages`, listing every package with its status and owner, the same way.
+- **Codes explain themselves.** IDs such as `SC-1` or `ENF-3` show what they stand for when hovered and link to where the package defines them, and a collapsed key at the top lists each prefix in use. Hover doesn't work on touch screens, so the Overview also says things in plain words first, with the ID after.
+- **Light or dark.** Pages follow the reader's system setting, and a toggle in the header switches between them. The choice is remembered per page in that reader's browser.
 
 Ask the product lead to run the `publish-review` skill to render a draft early, to triage feedback, or to refresh the hub.
 
