@@ -1,11 +1,11 @@
 {
   "upstream": {
     "url": "https://github.com/cre8tiv/myco.git",
-    "commit": "fcd69105f93da02e04c63e66cfa6505a8dc7e074"
+    "commit": "275fd41c771f8cfe095bf244be0fce51c6d6bec6"
   },
   "files": {
     "plugins/design-team/scripts/check-package.mjs": "a145346a8f5597f414eda7ff475de8b7fa2ddb8ac81ec51a18046d3d3ac09127",
-    "plugins/design-team/scripts/render-review.mjs": "dbd1e955d8764842296bd1a559ac85adb527130aee258d87cb62bc9c795580f1",
+    "plugins/design-team/scripts/render-review.mjs": "f003f50a5b4aa6be1dfb54c029f6a953b119e61c989ece8c1f2fed905660f58d",
     "plugins/design-team/templates/architecture-template.md": "ab42266ea252b1f3ec1fdc342cc4c41f2b46992c7df9c00f5b80cedd767b6c74",
     "plugins/design-team/templates/design-profile.md": "7b53c393d6381de6fa8cb2fa596e512839f666fce8d7f22236f123880d6c92f1",
     "plugins/design-team/templates/prd-template.md": "ca5941ec6d6cc295d4be9cb5476244e01786b1b88bb6251f56ad25222046a750",

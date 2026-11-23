@@ -4,11 +4,14 @@
 // faithfully from their markdown, so the page never drifts from what engineering reads.
 //
 //   node render-review.mjs package --dir <packages_dir>/<slug> --title "<page title>"
-//        --out <file.html> [--round <n>] [--summary <file.md>]   (default summary: review.md)
-//   node render-review.mjs hub --dir <packages_dir> --title "<page title>" --out <file.html>
+//        --out <file.html> [--round <n>] [--summary <file.md>] [--standalone]   (default summary: review.md)
+//   node render-review.mjs hub --dir <packages_dir> --title "<page title>" --out <file.html> [--standalone]
 //
 // Standard library only. The output has no <html>/<head>/<body>: the artifact host
 // wraps it. Mermaid fences become <pre class="mermaid">, which the host renders.
+// --standalone is for a page opened as a file rather than published: it writes a whole
+// HTML document, and the package page loads one pinned, integrity-checked Mermaid build
+// from a CDN to draw the diagrams. Offline, the diagram source stays readable.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -33,8 +36,11 @@ function parseArgs(argv) {
   /** @type {Record<string,string>} */
   const opts = {};
   for (let i = 0; i < rest.length; i++) {
-    if (rest[i].startsWith('--')) opts[rest[i].slice(2)] = rest[i + 1] ?? '';
-    if (rest[i].startsWith('--')) i++;
+    if (!rest[i].startsWith('--')) continue;
+    // A flag with no value (--standalone) is 'true'; it must not swallow the next flag.
+    const value = rest[i + 1];
+    if (value === undefined || value.startsWith('--')) opts[rest[i].slice(2)] = 'true';
+    else opts[rest[i].slice(2)] = rest[++i];
   }
   return { cmd, opts };
 }
@@ -573,6 +579,61 @@ const SCRIPT = `
 })();
 </script>`;
 
+// Mermaid for --standalone pages. Pinned with a Subresource Integrity hash, so a changed
+// file on the CDN is refused rather than run. The UMD build sets globalThis.mermaid.
+const MERMAID_SRC = 'https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js';
+const MERMAID_SRI = 'sha384-rbtjAdnIQE/aQJGEgXrVUlMibdfTSa4PQju4HDhN3sR2PmaKFzhEafuePsl9H/9I';
+
+/**
+ * Draws every pre.mermaid in the page's light or dark scheme, and again when the reader
+ * switches. Each diagram keeps its source, so a redraw starts from it; a diagram Mermaid
+ * can't parse, or a failed load (offline, blocked, integrity mismatch), leaves the source.
+ */
+const MERMAID_SCRIPT = `
+<script src="${MERMAID_SRC}" integrity="${MERMAID_SRI}" crossorigin="anonymous"></script>
+<script>
+(function () {
+  var m = window.mermaid;
+  var blocks = Array.prototype.slice.call(document.querySelectorAll('pre.mermaid'));
+  if (!m || !blocks.length) return;
+  var root = document.documentElement;
+  var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  var sources = blocks.map(function (b) { return b.textContent; });
+  var n = 0;
+  function dark() {
+    var t = root.getAttribute('data-theme');
+    return t ? t === 'dark' : !!(mq && mq.matches);
+  }
+  function draw() {
+    m.initialize({ startOnLoad: false, securityLevel: 'strict', theme: dark() ? 'dark' : 'default' });
+    blocks.forEach(function (b, i) {
+      m.render('mermaid-' + (n++), sources[i]).then(function (r) { b.innerHTML = r.svg; }, function () { b.textContent = sources[i]; });
+    });
+  }
+  draw();
+  new MutationObserver(draw).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  if (mq && mq.addEventListener) mq.addEventListener('change', function () { if (!root.getAttribute('data-theme')) draw(); });
+})();
+</script>`;
+
+/**
+ * Wraps a fragment as a whole HTML document, for a page opened as a file: the doctype
+ * keeps it out of quirks mode, which the artifact host otherwise provides.
+ * @param {string} html @returns {string}
+ */
+function standaloneDocument(html) {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+${html}</body>
+</html>
+`;
+}
+
 /**
  * The first http(s) URL in an index field, as a new-tab link; '' when there is none.
  * @param {string | undefined} value @param {string} label @returns {string}
@@ -643,6 +704,7 @@ ${html}</div>
 </div>
 ${THEME_SCRIPT}
 ${SCRIPT}
+${opts.standalone && sections.some(([, , html]) => html.includes('<pre class="mermaid">')) ? MERMAID_SCRIPT : ''}
 `;
 }
 
@@ -702,9 +764,10 @@ ${THEME_SCRIPT}
 const { cmd, opts } = parseArgs(process.argv.slice(2));
 try {
   if (!opts.dir || !opts.out || !['package', 'hub'].includes(cmd)) {
-    throw new Error('usage: render-review.mjs package --dir <package> --title <t> --out <file> [--round n] [--summary <file>]\n       render-review.mjs hub --dir <packages_dir> --title <t> --out <file>');
+    throw new Error('usage: render-review.mjs package --dir <package> --title <t> --out <file> [--round n] [--summary <file>] [--standalone]\n       render-review.mjs hub --dir <packages_dir> --title <t> --out <file> [--standalone]');
   }
-  const html = cmd === 'package' ? renderPackage(opts) : renderHub(opts);
+  const fragment = cmd === 'package' ? renderPackage(opts) : renderHub(opts);
+  const html = opts.standalone ? standaloneDocument(fragment) : fragment;
   fs.mkdirSync(path.dirname(path.resolve(opts.out)), { recursive: true });
   fs.writeFileSync(opts.out, html, 'utf8');
   console.log(`wrote ${opts.out} (${Math.round(html.length / 1024)} KB)`);
