@@ -52,13 +52,134 @@ const ID_RE = /\b((?:[A-Z]{1,5}-\d+)|(?:ADR-\d+))\b/g;
 // Standard names that look like IDs.
 const NOT_IDS = /^(UTF|SHA|ISO|RFC|HTTP|TLS|SSL|MD|AES|RSA|ES|IEEE|CVE|CWE|OWASP|PEP|WCAG)-/;
 
+// ---------- design IDs: what each one means ----------
+//
+// An ID is meaningless to a reader who hasn't opened the PRD. So before rendering, the
+// package's own documents are scanned for where each ID is defined (a table row whose first
+// cell is the ID, a heading that starts with it, or a bold lead-in), and each chip then
+// shows that definition on hover and links to it. A first definition wins. State is
+// module-level because inline() is called from everywhere and one process renders one page.
+
+/** @typedef {{doc: string, text: string, anchor: string, placed: boolean}} IdDef */
+/** @type {Map<string, IdDef>} */
+let ID_DEFS = new Map();
+/** @type {Map<string, string>} area names from headings like "Enforcement (ENF)", by prefix */
+let ID_AREAS = new Map();
+/** What a prefix means when no heading names it. */
+const KINDS = { A: 'Actors', F: 'User flows', SC: 'Key scenarios', D: 'Decisions', R: 'Risks', T: 'Threats', S: 'Screens and surfaces', ADR: 'Architecture decisions', SEC: 'Security controls' };
+const ONE_ID = /^[A-Z]{1,5}-\d+$/;
+const ID_LIST = /^[A-Z]{1,5}-\d+(?:\s*[,;]\s*[A-Z]{1,5}-\d+)*$/;
+const isId = (c) => ONE_ID.test(c) && !NOT_IDS.test(c);
+const isTableSep = (l) => /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(l);
+const tableCells = (l) => l.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, '|'));
+// A bold lead-in or heading that starts with an ID: "**SC-1 — Rotate a credential**", "### ADR-1: Release gate".
+const DEF_LEAD = /^(?:#{1,6}\s+|>\s*)?(\*\*)?([A-Z]{1,5}-\d+)\s*[—–:.]\s*(.+?)\s*$/;
+
+/** Markdown reduced to plain text, for a tooltip. @param {string} t */
+const plain = (t) => t.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[*`]/g, '').replace(/\s+/g, ' ').trim();
+/** @param {string} t @param {number} n */
+const clip = (t, n) => (t.length <= n ? t : `${t.slice(0, n).replace(/\s+\S*$/, '')}…`);
+
+/**
+ * Records where the IDs in one document are defined.
+ * @param {string} md @param {string} doc section id of the document
+ */
+function collectIds(md, doc) {
+  const lines = normalize(md);
+  const add = (id, text, anchor) => {
+    if (!ID_DEFS.has(id)) ID_DEFS.set(id, { doc, text: clip(text, 160), anchor, placed: anchor !== `${doc}-id-${slug(id)}` });
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (/^\s*\|/.test(l)) {
+      const def = isTableSep(l) || isTableSep(lines[i + 1] ?? '') ? null : rowDef(tableCells(l));
+      if (def) add(def.id, def.text, `${doc}-id-${slug(def.id)}`);
+      continue;
+    }
+    const h = l.match(/^#{1,6}\s+(.*?)\s*#*\s*$/);
+    if (h) {
+      const area = h[1].match(/^(?:\d+(?:\.\d+)*\.?\s+)?(.+?)\s*\(([A-Z]{1,5})\)$/);
+      if (area && !ID_AREAS.has(area[2])) ID_AREAS.set(area[2], plain(area[1]));
+    }
+    const d = l.match(DEF_LEAD);
+    if (d && isId(d[2]) && (h || d[1])) {
+      const title = plain(d[1] ? d[3].split('**')[0] : d[3]);
+      if (title) add(d[2], title, h ? `${doc}-${slug(h[1])}` : `${doc}-id-${slug(d[2])}`);
+    }
+  }
+}
+
+/**
+ * The ID a table row defines and what it says: the ID alone in the first cell, or an ID
+ * led into the cell as "Accepted risk: R-01: text".
+ * @param {string[]} cells @returns {{id: string, text: string} | null}
+ */
+function rowDef(cells) {
+  const first = plain(cells[0] ?? '');
+  if (isId(first)) return { id: first, text: rowText(cells) };
+  const m = first.match(/^(?:[A-Za-z][A-Za-z ]*:\s*)?([A-Z]{1,5}-\d+)\s*[:—–]\s*(.+)$/);
+  return m && isId(m[1]) ? { id: m[1], text: m[2] } : null;
+}
+
+/** A table row's text: its second cell, plus the third when the second is short. @param {string[]} cells */
+function rowText(cells) {
+  const a = plain(cells[1] ?? '');
+  const b = plain(cells[2] ?? '');
+  return a.length < 60 && b.length >= 12 && !ID_LIST.test(b) ? (a ? `${a} — ${b}` : b) : a;
+}
+
+/** The anchor id the element defining `id` should carry, the first time it is rendered in `doc`; otherwise null. */
+function claimAnchor(id, doc) {
+  const d = ID_DEFS.get(id);
+  if (!d || d.doc !== doc || d.placed) return null;
+  d.placed = true;
+  return d.anchor;
+}
+
+/**
+ * One ID as a chip. A defined ID shows its definition on hover and links to it, except
+ * inside a link (anchors can't nest) and at its own definition.
+ * @param {string} id @param {boolean} plainChip
+ */
+function chip(id, plainChip) {
+  const d = ID_DEFS.get(id);
+  if (!d) return `<span class="id">${id}</span>`;
+  const title = d.text ? ` title="${esc(d.text)}"` : '';
+  return plainChip ? `<span class="id"${title}>${id}</span>` : `<a class="id" href="#${d.anchor}"${title}>${id}</a>`;
+}
+
+/** The "what the codes mean" key: one row per prefix in use. @returns {string} */
+function renderKey() {
+  /** @type {Map<string, {n: number, first: string}>} */
+  const byPrefix = new Map();
+  for (const id of ID_DEFS.keys()) {
+    const p = id.slice(0, id.lastIndexOf('-'));
+    const e = byPrefix.get(p);
+    if (e) e.n++;
+    else byPrefix.set(p, { n: 1, first: id });
+  }
+  if (!byPrefix.size) return '';
+  const rows = [...byPrefix].map(([p, e]) => {
+    const means = ID_AREAS.get(p) || KINDS[p] || '';
+    const d = ID_DEFS.get(e.first);
+    return `<tr><td><code>${p}-n</code></td><td>${esc(means)}</td><td>${e.n}</td><td>${chip(e.first, true)} ${esc(clip(d.text, 90))}</td></tr>`;
+  }).join('\n');
+  return `<details class="key"><summary>What do codes like <span class="id">SC-1</span> and <span class="id">A-1</span> mean?</summary>
+<p>Each code labels one numbered item in the documents below. Hover a code to read what it stands for, or click it to jump to its definition.</p>
+<div class="scroll"><table><thead><tr><th>Code</th><th>Stands for</th><th>Count</th><th>First one</th></tr></thead><tbody>
+${rows}
+</tbody></table></div>
+</details>`;
+}
+
 /**
  * Renders inline markdown: code spans, links, bold, italic, and design IDs as chips.
  * @param {string} text
  * @param {string} prefix section id, for in-page anchors
+ * @param {boolean} [inLink] the text is inside a link, so IDs can't be links too
  * @returns {string}
  */
-function inline(text, prefix) {
+function inline(text, prefix, inLink = false) {
   /** @type {string[]} */
   const held = [];
   const hold = (html) => `\u0000${held.push(html) - 1}\u0000`;
@@ -71,7 +192,7 @@ function inline(text, prefix) {
   s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/(^|[\s(])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>');
   s = s.replace(/(^|[\s(])_([^_\s][^_]*)_(?=[\s.,;:)!?]|$)/g, '$1<em>$2</em>');
-  s = s.replace(ID_RE, (m) => (NOT_IDS.test(m) ? m : `<span class="id">${m}</span>`));
+  s = s.replace(ID_RE, (m) => (NOT_IDS.test(m) ? m : chip(m, inLink)));
   s = s.replace(/\u0000(\d+)\u0000/g, (_, n) => held[Number(n)]);
   return s;
 }
@@ -82,7 +203,7 @@ function inline(text, prefix) {
  * @param {string} label @param {string} href @param {string} prefix
  */
 function link(label, href, prefix) {
-  const text = inline(label, prefix);
+  const text = inline(label, prefix, true);
   if (/^https?:\/\//.test(href)) return `<a href="${esc(href)}" target="_blank" rel="noopener">${text}</a>`;
   if (href.startsWith('#')) return `<a href="#${prefix}-${slug(href.slice(1))}">${text}</a>`;
   const [file, anchor] = href.split('#');
@@ -100,8 +221,27 @@ function link(label, href, prefix) {
  * @returns {string}
  */
 function renderMarkdown(md, prefix) {
-  const lines = md.replace(/\r\n?/g, '\n').replace(/<!--[\s\S]*?-->/g, '').split('\n');
-  return blocks(lines, prefix);
+  return blocks(normalize(md), prefix);
+}
+
+/** A document's lines: no byte-order mark, comments or front matter. @param {string} md @returns {string[]} */
+function normalize(md) {
+  return stripFrontMatter(md.replace(/^\ufeff/, '').replace(/\r\n?/g, '\n').replace(/<!--[\s\S]*?-->/g, '').split('\n'));
+}
+
+/**
+ * Drops a YAML front-matter block: `---` on the first line through the next line that is
+ * exactly `---`, plus the blank lines after it. Only at the start, so a `---` rule later
+ * in a document still renders. An unclosed block is left alone.
+ * @param {string[]} lines @returns {string[]}
+ */
+function stripFrontMatter(lines) {
+  if (lines[0]?.trimEnd() !== '---') return lines;
+  const end = lines.findIndex((l, i) => i > 0 && l.trimEnd() === '---');
+  if (end < 0) return lines;
+  let i = end + 1;
+  while (i < lines.length && lines[i].trim() === '') i++;
+  return lines.slice(i);
 }
 
 /** @param {string[]} lines @param {string} prefix @returns {string} */
@@ -109,7 +249,6 @@ function blocks(lines, prefix) {
   let out = '';
   let i = 0;
   const isList = (l) => /^\s*(?:[-*+]|\d+[.)])\s+/.test(l);
-  const isTableSep = (l) => /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(l);
   const startsBlock = (l, next) =>
     /^\s*```/.test(l) || /^#{1,6}\s/.test(l) || /^\s*>/.test(l) || isList(l) ||
     /^\s*(-{3,}|\*{3,})\s*$/.test(l) || (/^\s*\|/.test(l) && next !== undefined && isTableSep(next));
@@ -150,13 +289,15 @@ function blocks(lines, prefix) {
     }
 
     if (/^\s*\|/.test(line) && i + 1 < lines.length && isTableSep(lines[i + 1])) {
-      const cells = (l) => l.trim().replace(/^\|/, '').replace(/\|$/, '').split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, '|'));
-      const head = cells(line);
+      const head = tableCells(line);
       i += 2;
       let rows = '';
       while (i < lines.length && /^\s*\|/.test(lines[i])) {
-        const r = cells(lines[i++]);
-        rows += `<tr>${head.map((_, k) => `<td>${inline(r[k] ?? '', prefix)}</td>`).join('')}</tr>\n`;
+        const r = tableCells(lines[i++]);
+        const def = rowDef(r);
+        const rowId = def ? claimAnchor(def.id, prefix) : null;
+        // The defining row carries the anchor, and its own ID needn't link to itself.
+        rows += `<tr${rowId ? ` id="${rowId}"` : ''}>${head.map((_, k) => `<td>${inline(r[k] ?? '', prefix, k === 0 && !!rowId)}</td>`).join('')}</tr>\n`;
       }
       out += `<div class="scroll"><table><thead><tr>${head.map((c) => `<th>${inline(c, prefix)}</th>`).join('')}</tr></thead><tbody>\n${rows}</tbody></table></div>\n`;
       continue;
@@ -172,7 +313,10 @@ function blocks(lines, prefix) {
     const para = [];
     while (i < lines.length && lines[i].trim() && !startsBlock(lines[i], lines[i + 1])) para.push(lines[i++].trim());
     if (!para.length) { para.push(lines[i++].trim()); }
-    out += `<p>${inline(para.join(' '), prefix)}</p>\n`;
+    const text = para.join(' ');
+    const lead = text.match(/^\*\*([A-Z]{1,5}-\d+)\s*[—–:.]/);
+    const leadId = lead && isId(lead[1]) ? claimAnchor(lead[1], prefix) : null;
+    out += `<p${leadId ? ` id="${leadId}"` : ''}>${inline(text, prefix)}</p>\n`;
   }
   return out;
 }
@@ -335,6 +479,15 @@ section.doc > .doc-head .src { font: 12px var(--font-mono); color: var(--muted);
 .body code.path { color: var(--muted); }
 .body hr { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
 .body blockquote { margin: 12px 0; padding: 4px 16px; border-left: 3px solid var(--accent); background: var(--surface); }
+.key { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; max-width: 72ch; }
+.key summary { cursor: pointer; font-weight: 500; }
+.key p { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
+a.id { text-decoration: none; }
+a.id:hover, a.id:focus-visible { background: var(--accent); color: var(--surface); outline: none; }
+.id[title] { cursor: help; }
+a.id[title] { cursor: pointer; }
+tr:target, p:target, h2:target, h3:target, h4:target { background: var(--accent-soft); }
+tr[id], p[id], h2[id], h3[id], h4[id] { scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 16px); }
 .id { font: 500 .82em var(--font-mono); color: var(--accent); background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; font-variant-numeric: tabular-nums; }
 .scroll { overflow-x: auto; margin: 12px 0; max-width: 100%; }
 .body .scroll { max-width: min(100%, calc(100vw - 32px)); }
@@ -345,6 +498,10 @@ pre { margin: 0; padding: 12px 14px; background: var(--surface); border: 1px sol
 pre code { background: none; padding: 0; }
 .diagram pre.mermaid { background: var(--surface); text-align: center; }
 .note { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
+.top-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.theme-toggle { font: 500 12px/1 var(--font-mono); color: var(--muted); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 11px; cursor: pointer; }
+.theme-toggle:hover, .theme-toggle:focus-visible { color: var(--fg); border-color: var(--accent); outline: none; }
 @media (max-width: 760px) {
   .wrap { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   nav.index { position: static; display: flex; flex-wrap: wrap; gap: 4px; }
@@ -352,6 +509,49 @@ pre code { background: none; padding: 0; }
 }
 @media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 </style>`;
+
+// Light/dark toggle. The stylesheet follows the system setting until the reader picks
+// one; the pick sets data-theme on <html> and is remembered per page where storage works.
+const THEME_KEY = 'design-review-theme';
+
+/** Applies a remembered theme before the page paints, so it doesn't flash the other one. */
+const THEME_BOOT = `
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem('${THEME_KEY}');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+})();
+</script>`;
+
+/** The toggle button; hidden until the script below wires it, so it never shows dead. */
+const THEME_BUTTON = '<button type="button" class="theme-toggle" hidden></button>';
+
+const THEME_SCRIPT = `
+<script>
+(function () {
+  var root = document.documentElement;
+  var btn = document.querySelector('.theme-toggle');
+  if (!btn) return;
+  var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function current() { return root.getAttribute('data-theme') || (mq && mq.matches ? 'dark' : 'light'); }
+  function label() {
+    var next = current() === 'dark' ? 'light' : 'dark';
+    btn.textContent = next === 'dark' ? '\\u263E Dark' : '\\u2600 Light';
+    btn.setAttribute('aria-label', 'Switch to ' + next + ' mode');
+  }
+  btn.addEventListener('click', function () {
+    var next = current() === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('${THEME_KEY}', next); } catch (e) {}
+    label();
+  });
+  if (mq && mq.addEventListener) mq.addEventListener('change', label);
+  label();
+  btn.hidden = false;
+})();
+</script>`;
 
 const SCRIPT = `
 <script>
@@ -373,6 +573,15 @@ const SCRIPT = `
 })();
 </script>`;
 
+/**
+ * The first http(s) URL in an index field, as a new-tab link; '' when there is none.
+ * @param {string | undefined} value @param {string} label @returns {string}
+ */
+function fieldLink(value, label) {
+  const m = (value || '').match(/https?:\/\/[^\s)>\]|]+/);
+  return m ? `<a href="${esc(m[0])}" target="_blank" rel="noopener">${esc(label)}</a>` : '';
+}
+
 /** @param {Record<string,string>} opts */
 function renderPackage(opts) {
   const dir = path.resolve(opts.dir);
@@ -384,28 +593,38 @@ function renderPackage(opts) {
   const commit = lastCommit(dir);
   const dirty = uncommitted(dir);
   const date = new Date().toISOString().slice(0, 10);
+  const prototype = fieldLink(fields.prototype, 'Open prototype');
 
   /** @type {[string, string, string][]} id, label, html */
   const sections = [];
   const summary = opts.summary || path.join(dir, 'review.md');
-  if (fs.existsSync(summary)) sections.push(['overview', 'Overview', renderMarkdown(fs.readFileSync(summary, 'utf8'), 'overview')]);
+  /** @type {[string, string, string][]} id, label, markdown source, in reading order */
+  const sources = [];
+  if (fs.existsSync(summary)) sources.push(['overview', 'Overview', fs.readFileSync(summary, 'utf8')]);
   for (const [file, id, label] of DOCS) {
     const p = path.join(dir, file);
-    if (fs.existsSync(p)) sections.push([id, label, renderMarkdown(fs.readFileSync(p, 'utf8'), id)]);
+    if (fs.existsSync(p)) sources.push([id, label, fs.readFileSync(p, 'utf8')]);
   }
+  // Every document is scanned before any is rendered, so an ID can point at a later document.
+  ID_DEFS = new Map();
+  ID_AREAS = new Map();
+  for (const [id, , md] of sources) collectIds(md, id);
+  for (const [id, label, md] of sources) sections.push([id, label, renderMarkdown(md, id)]);
 
   const facts = [
     `<span class="pill ${statusClass(status)}">${esc(status)}</span>`,
     fields.owner ? `<span>Owner <b>${esc(fields.owner)}</b></span>` : '',
     opts.round ? `<span>Review round <b>${esc(opts.round)}</b></span>` : '',
+    prototype ? `<span>${prototype}</span>` : '',
     `<span>Rendered <b>${date}</b>${commit ? ` from <b>${esc(commit)}</b>` : ''}${dirty ? ' (with uncommitted edits)' : ''}</span>`,
   ].filter(Boolean).join('');
 
   return `<title>${esc(title)}</title>
 ${STYLE}
+${THEME_BOOT}
 <div class="wrap">
 <header class="top">
-  <div class="eyebrow">Design package · ${esc(path.basename(dir))}</div>
+  <div class="top-row"><div class="eyebrow">Design package · ${esc(path.basename(dir))}</div>${THEME_BUTTON}</div>
   <h1>${esc(name || title)}</h1>
   <div class="facts">${facts}</div>
 </header>
@@ -413,6 +632,7 @@ ${STYLE}
 ${sections.map(([id, label]) => `  <a href="#${id}">${esc(label)}</a>`).join('\n')}
 </nav>
 <main>
+${renderKey()}
 ${sections.map(([id, label, html]) => `<section class="doc" id="${id}">
 <div class="doc-head"><h2>${esc(label)}</h2>${id === 'overview' ? '' : `<span class="src">${esc(DOCS.find((d) => d[1] === id)[0])}</span>`}</div>
 <div class="body">
@@ -421,6 +641,7 @@ ${html}</div>
 <p class="note">Rendered from the markdown in the repository, which stays the source of truth. Comment on anything here; the product lead collects comments into the next decision round.</p>
 </main>
 </div>
+${THEME_SCRIPT}
 ${SCRIPT}
 `;
 }
@@ -436,39 +657,43 @@ function renderHub(opts) {
     })
     .sort((a, b) => (b.fields['last updated'] || '').localeCompare(a.fields['last updated'] || ''));
   const date = new Date().toISOString().slice(0, 10);
-  const linkOf = (v) => {
-    const m = (v || '').match(/https?:\/\/[^\s)>\]]+/);
-    return m ? `<a href="${esc(m[0])}" target="_blank" rel="noopener">Open review</a>` : '<span class="note-inline">Not published</span>';
-  };
+  /**
+   * An index field's link, or muted fallback text when it holds no URL.
+   * @param {string | undefined} v @param {string} label @param {string} none @returns {string}
+   */
+  const linkOf = (v, label, none) => fieldLink(v, label) || `<span class="note-inline">${esc(none)}</span>`;
   const rows = pkgs.map((p) => {
     const status = (p.fields.status || 'Draft').replace(/[<>]/g, '');
     return `<tr><td><b>${esc(p.name)}</b><br><code class="path">${esc(p.slug)}</code></td>
 <td><span class="pill ${statusClass(status)}">${esc(status)}</span></td>
 <td>${esc(p.fields.owner || '')}</td><td style="font-variant-numeric: tabular-nums">${esc(p.fields['last updated'] || '')}</td>
-<td>${linkOf(p.fields['review page'])}</td></tr>`;
+<td>${linkOf(p.fields['review page'], 'Open review', 'Not published')}</td>
+<td>${linkOf(p.fields.prototype, 'Open prototype', '—')}</td></tr>`;
   }).join('\n');
   const title = opts.title || 'Design packages';
 
   return `<title>${esc(title)}</title>
 ${STYLE}
 <style>.wrap.hub { grid-template-columns: minmax(0, 1fr); } .note-inline { color: var(--muted); font-size: 13px; }</style>
+${THEME_BOOT}
 <div class="wrap hub">
 <header class="top">
-  <div class="eyebrow">Design hub · ${esc(path.basename(root))}</div>
+  <div class="top-row"><div class="eyebrow">Design hub · ${esc(path.basename(root))}</div>${THEME_BUTTON}</div>
   <h1>${esc(title)}</h1>
   <div class="facts"><span><b>${pkgs.length}</b> package${pkgs.length === 1 ? '' : 's'}</span><span>Updated <b>${date}</b></span></div>
 </header>
 <main>
 <section class="doc" id="packages">
 <div class="body" style="max-width:none">
-${pkgs.length ? `<div class="scroll"><table><thead><tr><th>Initiative</th><th>Status</th><th>Owner</th><th>Last updated</th><th>Review page</th></tr></thead><tbody>
+${pkgs.length ? `<div class="scroll"><table><thead><tr><th>Initiative</th><th>Status</th><th>Owner</th><th>Last updated</th><th>Review page</th><th>Prototype</th></tr></thead><tbody>
 ${rows}
 </tbody></table></div>` : '<p>No design packages yet.</p>'}
 </div>
 </section>
-<p class="note">Each review page is private until its owner shares it. The markdown packages in the repository are the source of truth.</p>
+<p class="note">Each review page and prototype is private until its owner shares it. The markdown packages in the repository are the source of truth.</p>
 </main>
 </div>
+${THEME_SCRIPT}
 `;
 }
 

@@ -5,7 +5,7 @@
   },
   "files": {
     "plugins/design-team/scripts/check-package.mjs": "5136fdbe8d84d0e4f15116f9d3d060d6da0f653cd4c7f5a327ed5f9494f878d9",
-    "plugins/design-team/scripts/render-review.mjs": "ec39a0895adee6f0fddc39e7c7df6a7c2390215f48d54602feeabbbf44006f71",
+    "plugins/design-team/scripts/render-review.mjs": "dbd1e955d8764842296bd1a559ac85adb527130aee258d87cb62bc9c795580f1",
     "plugins/design-team/templates/architecture-template.md": "ab42266ea252b1f3ec1fdc342cc4c41f2b46992c7df9c00f5b80cedd767b6c74",
     "plugins/design-team/templates/design-profile.md": "742712aeb7993a810123e59a7cc70f6265c634bc23d5d785732d6cd4a33098f5",
     "plugins/design-team/templates/prd-template.md": "ca5941ec6d6cc295d4be9cb5476244e01786b1b88bb6251f56ad25222046a750",
